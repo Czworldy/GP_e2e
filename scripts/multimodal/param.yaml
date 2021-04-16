@@ -1,0 +1,15 @@
+
+
+trajectory_length: 25
+vehicle_width: 0.4
+correction_length: 0.0
+lateral_step_factor: 0.95
+
+### perspective mapping
+pm:
+    image_width: 400
+    image_height: 200
+    # save: false
+
+    # type_threshold: 0.17  # angular velocity
+    # type_save: true
