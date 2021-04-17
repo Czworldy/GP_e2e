@@ -40,7 +40,7 @@ def draw_route(t_map, vehicle, agent, destination, origin_map, spawn_points):
     while True:
         new_destination = destination
         # route_trace = agent._trace_route(start_waypoint, end_waypoint)
-        route_trace = get_reference_route(t_map, vehicle, 500, 0.02)
+        route_trace = get_reference_route(t_map, vehicle, 50, 0.02)
         route_trace_list = []
         dist = 0.
 
@@ -65,7 +65,7 @@ def draw_route(t_map, vehicle, agent, destination, origin_map, spawn_points):
             route_trace_list.append(x)
             route_trace_list.append(y)
 
-        if (dist < 50):
+        if (dist < 5):
             destination = random.choice(spawn_points)
             end_waypoint = agent._map.get_waypoint(destination.location)
         else:

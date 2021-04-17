@@ -26,6 +26,15 @@ from .pid import LongPID
 
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+def get_junctions(waypoint_pairs):
+    waypoint_ids = []
+    waypoints = []
+    for wp_pair in waypoint_pairs:
+        for wp in wp_pair:
+            if wp.id not in waypoint_ids:
+                waypoint_ids.append(wp.id)
+                waypoints.append(wp)
+    return waypoints
 
 def visualize(img, nav, speed):
     text = "speed: "+str(round(3.6*speed, 1))+' km/h'
@@ -72,8 +81,8 @@ class CARLAEnv(gym.Env):
         # self.observation_space = spaces.Box(low=-np.inf, high=np.inf, shape=(7,), dtype=np.float32)
         
         self.world_map = self.world.get_map()
-        waypoint_tuple_list = self.world_map.get_topology()
-        self.origin_map = get_map(waypoint_tuple_list)
+        self.waypoint_tuple_list = self.world_map.get_topology()
+        self.origin_map = get_map(self.waypoint_tuple_list)
         self.spawn_points = self.world_map.get_spawn_points()
         self.route_trace = None
         # environment feedback infomation
@@ -104,7 +113,7 @@ class CARLAEnv(gym.Env):
         delta_theta = abs(self._angle_normalize(vehicle2point-vehicle_yaw))
         # error = -org_dist * np.sin(delta_theta)
         """
-        for i in range(20): #50
+        for _ in range(2): #50
 
             if self.global_dict['collision']:
                 self.done = True
@@ -233,12 +242,16 @@ class CARLAEnv(gym.Env):
         # start_point = random.choice(self.spawn_points)
         # self.destination = random.choice(self.spawn_points)
         # yujiyu
-        start_point = self.spawn_points[1]  #1
+        junctions = get_junctions(self.waypoint_tuple_list)
+
+        start_point = random.choice(junctions).transform
+        # start_point = self.spawn_points[1]  #1
         self.vehicle.set_transform(start_point)
-        for i in range(10):
+        self.vehicle.set_velocity(carla.Vector3D(x=0.0, y=0.0, z=0.0))
+        for _ in range(10):
             self.world.tick()
 
-        ref_route = get_reference_route(self.world_map, self.vehicle, 500, 0.05)
+        ref_route = get_reference_route(self.world_map, self.vehicle, 50, 0.05)
         self.destination = ref_route[-1][0].transform
         
 
@@ -259,7 +272,8 @@ class CARLAEnv(gym.Env):
         self.route_trace = ref_route
         start_point.rotation = self.route_trace[0][0].transform.rotation
         self.vehicle.set_transform(start_point)
-        for i in range(10):
+        for _ in range(10):
+            self.vehicle.set_velocity(carla.Vector3D(x=0.0, y=0.0, z=0.0))
             self.world.tick()
 
         self.state = copy.deepcopy(self.global_dict['img_nav'])

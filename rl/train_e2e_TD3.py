@@ -53,7 +53,7 @@ class TD3():
         np.random.seed(self.seed)
 
         self.noise = GaussianExploration(
-            gym.spaces.Box(low=np.array([-1.]), high=np.array([1.]), dtype=np.float32),
+            gym.spaces.Box(low=np.array([-0.6]), high=np.array([-0.6]), dtype=np.float32),
             max_sigma=0.5, min_sigma=0.05,
             decay_period=self.noise_decay_steps)
         
@@ -78,8 +78,8 @@ class TD3():
         
         self.value_criterion = nn.MSELoss()
         
-        policy_lr = 1e-5
-        value_lr  = 1e-5
+        policy_lr = 1e-4
+        value_lr  = 1e-4
 
         # yujiyu
         # policy_lr = 1e-6
@@ -135,7 +135,7 @@ class TD3():
         noise = torch.normal(torch.zeros(next_action.size()), noise_std).to(device)
         noise = torch.clamp(noise, -noise_clip, noise_clip)
         next_action += noise
-        next_action = torch.clamp(next_action, -0.99, 0.99)
+        next_action = torch.clamp(next_action, -0.6, 0.6)
     
         target_q_value1  = self.target_value_net1(next_state, next_action)
         target_q_value2  = self.target_value_net2(next_state, next_action)

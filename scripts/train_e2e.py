@@ -5,9 +5,9 @@ sys.path.insert(0, join(dirname(__file__), '../../'))
 sys.path.insert(0, join(dirname(__file__), '../'))
 
 import simulator
-simulator.load('/home/czworldy/CARLA_0.9.9.4')
+simulator.load('/home/cz/CARLA_0.9.9.4')
 import carla
-sys.path.append('/home/czworldy/CARLA_0.9.9.4/PythonAPI/carla')
+sys.path.append('/home/cz/CARLA_0.9.9.4/PythonAPI/carla')
 from agents.navigation.basic_agent import BasicAgent
 
 from simulator import config, set_weather, add_vehicle
@@ -26,6 +26,8 @@ from utils import GlobalDict
 from utils.gym_wrapper_e2e import CARLAEnv
 from rl.train_e2e_TD3 import TD3
 
+import gc
+import objgraph
 import os
 import cv2
 import time
@@ -75,7 +77,7 @@ torch.cuda.manual_seed(999)
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
 parser = argparse.ArgumentParser(description='Params')
-parser.add_argument('--name', type=str, default="rl-train-img-nav-03", help='name of the script')
+parser.add_argument('--name', type=str, default="rl-train-e2e-04", help='name of the script')
 parser.add_argument('-d', '--data', type=int, default=1, help='data index')
 parser.add_argument('-s', '--save', type=bool, default=False, help='save result')
 parser.add_argument('--width', type=int, default=400, help='image width')
@@ -89,11 +91,11 @@ parser.add_argument('--dt', type=float, default=0.05, help='discretization minim
 parser.add_argument('--rnn_steps', type=int, default=10, help='rnn readout steps')
 args = parser.parse_args()
 
-log_path = '/home/czworldy/result/log/'+args.name+'/'
-ckpt_path = '/home/czworldy/result/saved_models/%s' % args.name
+log_path = '/home/cz/result/log/'+args.name+'/'
+ckpt_path = '/home/cz/result/saved_models/%s' % args.name
 logger = SummaryWriter(log_dir=log_path)
 
-model = TD3(buffer_size=1e5, noise_decay_steps=3e3, batch_size=8, logger=logger, policy_freq=4)
+model = TD3(buffer_size=5e4, noise_decay_steps=3e3, batch_size=40, logger=logger, policy_freq=4)
 
 model_dict = model.policy_net.state_dict()
 value_dict = model.value_net1.state_dict()
@@ -113,6 +115,7 @@ try:
     print("load model success")
 except:
     print("load model failed")
+    raise ValueError("load model failed")
 
 
 model.policy_net.conv1.requires_grad_(False)
@@ -197,7 +200,7 @@ def main():
 
     settings = world.get_settings()
     settings.synchronous_mode = True
-    settings.fixed_delta_seconds = 0.01
+    settings.fixed_delta_seconds = 0.05
     world.apply_settings(settings)
     
     blueprint = world.get_blueprint_library()
@@ -263,14 +266,14 @@ def main():
         total_driving_metre = 0
 
         state = env.reset()
-        plan_time = time.time()
-        global_dict['state0'] = cu.getActorState('odom', global_plan_time, global_dict['vehicle'])
-        global_dict['state0'].x = global_transform.location.x
-        global_dict['state0'].y = global_transform.location.y
-        global_dict['state0'].z = global_transform.location.z
-        global_dict['state0'].theta = np.deg2rad(global_transform.rotation.yaw)
+        # plan_time = time.time()
+        # global_dict['state0'] = cu.getActorState('odom', global_plan_time, global_dict['vehicle'])
+        # global_dict['state0'].x = global_transform.location.x
+        # global_dict['state0'].y = global_transform.location.y
+        # global_dict['state0'].z = global_transform.location.z
+        # global_dict['state0'].theta = np.deg2rad(global_transform.rotation.yaw)
 
-
+        objgraph.show_most_common_types(limit=10)
 
         for step in range(max_episode_steps):
 
@@ -278,7 +281,7 @@ def main():
             action = model.policy_net(state_cuda)
             action = action.detach().cpu().numpy()[0]
 
-            add_noise = True if random.random() < 0.5 else False
+            add_noise = True if random.random() < 0.8 else False
             if add_noise:
                 action = model.noise.get_action(action)
 
@@ -288,11 +291,11 @@ def main():
             next_state, reward, done, ts = env.step(action)
 
             plan_time = ts
-            global_dict['state0'] = cu.getActorState('odom', global_plan_time, global_dict['vehicle'])
-            global_dict['state0'].x = global_transform.location.x
-            global_dict['state0'].y = global_transform.location.y
-            global_dict['state0'].z = global_transform.location.z
-            global_dict['state0'].theta = np.deg2rad(global_transform.rotation.yaw)
+            # global_dict['state0'] = cu.getActorState('odom', global_plan_time, global_dict['vehicle'])
+            # global_dict['state0'].x = global_transform.location.x
+            # global_dict['state0'].y = global_transform.location.y
+            # global_dict['state0'].z = global_transform.location.z
+            # global_dict['state0'].theta = np.deg2rad(global_transform.rotation.yaw)
 
             x_now = global_transform.location.x
             y_now = global_transform.location.y
@@ -304,7 +307,7 @@ def main():
                 # print("Start Train:")
                 train_flag = True
                 time_s = time.time()
-                model.train_step(total_steps, noise_std = 0.2, noise_clip = 0.3) #noise_std = 0.2 noise_clip = 0.5
+                model.train_step(total_steps, noise_std = 0.2, noise_clip = 0.4) #noise_std = 0.2 noise_clip = 0.5
                 time_e = time.time()
                 print('time:', time_e - time_s)
             
@@ -325,7 +328,7 @@ def main():
                 else:
                     print('Fail')
                 # last_episode_reward = episode_reward
-                if episode_num % 10 == 0 and train_flag == True:
+                if episode_num % 20 == 0 and train_flag == True:
                     model.save(directory=ckpt_path, filename=str(episode_num)) 
                 break
   
