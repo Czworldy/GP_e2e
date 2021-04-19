@@ -16,6 +16,7 @@ from .capac_controller import CapacController
 from .navigator_sim_route import get_map, replan, close2dest
 from .route import get_reference_route
 from matplotlib import pyplot as plt 
+import torchvision.transforms as transforms
 
 import simulator
 simulator.load('/home/cz/CARLA_0.9.9.4')
@@ -26,6 +27,15 @@ from .pid import LongPID
 
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+
+img_height = 200
+img_width = 400
+state_trans_0 = [
+    transforms.Resize((img_height, img_width)),
+    transforms.ToPILImage(),
+    # transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
+]
+state_trans = transforms.Compose(state_trans_0)
 def get_junctions(waypoint_pairs):
     waypoint_ids = []
     waypoints = []
@@ -36,11 +46,12 @@ def get_junctions(waypoint_pairs):
                 waypoints.append(wp)
     return waypoints
 
-def visualize(img, nav, speed):
+def visualize(img, nav, speed, imput):
     text = "speed: "+str(round(3.6*speed, 1))+' km/h'
     cv2.putText(img, text, (20, 30), cv2.FONT_HERSHEY_PLAIN, 2.0, (255, 255, 255), 2)    
     cv2.imshow('Visualization', img)
     cv2.imshow('Nav', nav)
+    # cv2.imshow('input', imput)
     cv2.waitKey(1)
 
 # def draw_traj(nav_map, output, args):
@@ -68,7 +79,7 @@ class CARLAEnv(gym.Env):
         self.agent = BasicAgent(self.vehicle, target_speed=40)
         self.global_dict = global_dict
         self.args = args
-        self.pid = LongPID(0.01, -0.5, 1.0)
+        self.pid = LongPID(0.05, -0.5, 1.0)
         # self.ctrller = CapacController(self.world, self.vehicle, 30) #freq=50
         # robot action space
 
@@ -86,7 +97,7 @@ class CARLAEnv(gym.Env):
         self.spawn_points = self.world_map.get_spawn_points()
         self.route_trace = None
         # environment feedback infomation
-        self.state = []
+        self.state = {}
         self.done = False
         self.reward = 0.0
         
@@ -113,14 +124,14 @@ class CARLAEnv(gym.Env):
         delta_theta = abs(self._angle_normalize(vehicle2point-vehicle_yaw))
         # error = -org_dist * np.sin(delta_theta)
         """
-        for _ in range(2): #50
+        for _ in range(4): #50
 
             if self.global_dict['collision']:
                 self.done = True
-                self.reward -= 5.  #-50
+                self.reward -= 10.  #-50
                 print('collision !')
                 break
-            if close2dest(self.vehicle, self.destination):
+            if close2dest(self.vehicle, self.destination, dist=5):
                 self.done = True
                 self.reward += 10.   # reward += 100
                 print('Success !')
@@ -131,10 +142,10 @@ class CARLAEnv(gym.Env):
             control = carla.VehicleControl(throttle=throttle, brake=brake, steer=steer)
             self.vehicle.apply_control(control)
             self.world.tick()
-            visualize(self.global_dict['view_img'], self.global_dict['nav'], self.global_dict['v0'] )
+            visualize(self.global_dict['view_img'], self.global_dict['nav'], self.global_dict['v0'], self.global_dict['img'] )
             # time.sleep(0.01)
 
-        waypoint1, index1, diff_deg1 = self.find_waypoint()
+        waypoint1, _, diff_rad = self.find_waypoint()
         vehicle_current_x = self.vehicle.get_transform().location.x
         vehicle_current_y = self.vehicle.get_transform().location.y
         # vehicle_current_yaw = self.vehicle.get_transform().rotation.yaw
@@ -149,31 +160,33 @@ class CARLAEnv(gym.Env):
             lane_offset = np.sqrt( (lane_x - vehicle_current_x) ** 2 + (lane_y - vehicle_current_y) ** 2) 
             # print("lane_offset: %.2f"  %(lane_offset))
             # if lane_offset > 0.7 and lane_offset <= 1.8:  #转弯的时候还是存在问题 route.py 解决
-            if lane_offset <= 1.5:
-                lane_reward = 0.7 - lane_offset
+            if lane_offset <= 3.0:
+                lane_reward = 1 - lane_offset
                 
-            elif lane_offset > 1.5 and lane_offset <= 3.3:
-                lane_reward = (0.7 - lane_offset)
-            elif lane_offset > 3.3:
+            # elif lane_offset > 1.5 and lane_offset <= 3.3:
+            #     lane_reward = (0.7 - lane_offset)
+            elif lane_offset > 3.0:
                 print('off line!')
                 self.done = True
                 lane_reward = 0
-                self.reward -= 3
+                self.reward -= 4
             else:
                 lane_reward = 0
                 
         else:
             print('waypoint not found!')
             lane_reward = -4
+        yaw_reward = -3 * diff_rad/ np.pi
+        self.reward += yaw_reward
         self.reward += lane_reward
         
-        # kmh = np.sqrt(v.x**2+v.y**2) * 3.6
+        kmh = np.sqrt(v.x**2+v.y**2) * 3.6
         # if kmh < 10:
         #     kmh_reward = (kmh - 10) / 10.
         # else:
         #     kmh_reward = (kmh - 10) / 10.
-        # kmh_reward = (kmh - 10) / 10.
-        # self.reward += kmh_reward
+        kmh_reward = (kmh - 10) / 10.
+        self.reward += kmh_reward
 
         """
         new_dist = np.sqrt((vehicle_current_x-waypoint1.location.x)**2+(vehicle_current_y-waypoint1.location.y)**2)
@@ -195,15 +208,22 @@ class CARLAEnv(gym.Env):
         v0 = np.sqrt(v.x**2+v.y**2+v.z**2) / 4. #/4
         self.reward += v0
         """
-        print( "reward: %.2f , lane_reward: %.2f , trace_dist: %.2f" % (self.reward, lane_reward, trace_dist) )
+
+
+        print( "reward: %.2f , lane_reward: %.2f , trace_dist: %.2f , yaw_reward:%.2f , kmh_reward:%.2f" % (self.reward, lane_reward, trace_dist, yaw_reward,kmh_reward) )
         # print("trace_dist: %.2f" % (trace_dist))
-        self.state = copy.deepcopy(self.global_dict['img_nav'])
-        #self.global_dict['ts']
+        self.state['img_nav'] = copy.deepcopy(self.global_dict['img_nav'])
+
         
+        #self.global_dict['ts']
+        # state_save = state_trans(self.state[:3])
+        # state_save = np.array(state_save)
+        # print(state_save.shape, np.max(state_save), np.min(state_save))
+        # cv2.imwrite('/home/cz/result/img/state{}.png'.format(str(time.time())), state_save)
         #waypoint2, index2, diff_deg2 = self.find_waypoint()
         #print(index2, index1)
 
-        return self.state, self.reward, self.done, copy.deepcopy(self.global_dict['ts'])
+        return self.state, self.reward, self.done, self.global_dict['ts']
 
     def find_waypoint(self):
         position = self.vehicle.get_transform().location
@@ -234,9 +254,11 @@ class CARLAEnv(gym.Env):
         #print('11111', self.route_trace[index][0].transform.rotation.yaw, yaw)
         #print('vehicle:', yaw)
         yaw = np.deg2rad(yaw)
+        err = abs(wp_yaw-yaw)
+        err = abs(self._angle_normalize(err))
         #print('ddddddddd', np.rad2deg(abs(wp_yaw-yaw)))
         #print(wp_yaw, yaw)
-        return self.route_trace[index][0].transform, index, np.rad2deg(abs(wp_yaw-yaw))
+        return self.route_trace[index][0].transform, index, err
         
     def reset(self):
         # start_point = random.choice(self.spawn_points)
@@ -254,15 +276,14 @@ class CARLAEnv(gym.Env):
         ref_route = get_reference_route(self.world_map, self.vehicle, 50, 0.05)
         self.destination = ref_route[-1][0].transform
         
-
-        
         self.global_dict['plan_map'], self.destination, ref_route = replan(self.world_map, self.vehicle, self.agent, self.destination, copy.deepcopy(self.origin_map), self.spawn_points)
         
-        show_plan = cv2.cvtColor(np.asarray(self.global_dict['plan_map']), cv2.COLOR_BGR2RGB)
-        cv2.namedWindow('plan_map', 0)    
-        cv2.resizeWindow('plan_map', 600, 600)   # 自己设定窗口图片的大小
-        cv2.imshow('plan_map', show_plan)
-        cv2.waitKey(1)
+        # show_plan = cv2.cvtColor(np.asarray(self.global_dict['plan_map']), cv2.COLOR_BGR2RGB)
+        # cv2.namedWindow('plan_map', 0)    
+        # cv2.resizeWindow('plan_map', 600, 600)   # 自己设定窗口图片的大小
+        # cv2.imshow('plan_map', show_plan)
+        # cv2.waitKey(1)
+
         self.global_dict['collision'] = False
         
         # start_waypoint = self.agent._map.get_waypoint(self.agent._vehicle.get_location())
@@ -276,7 +297,7 @@ class CARLAEnv(gym.Env):
             self.vehicle.set_velocity(carla.Vector3D(x=0.0, y=0.0, z=0.0))
             self.world.tick()
 
-        self.state = copy.deepcopy(self.global_dict['img_nav'])
+        self.state['img_nav'] = copy.deepcopy(self.global_dict['img_nav'])
 
         # if self.state == None:
         #     print("None State!")

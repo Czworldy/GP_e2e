@@ -26,6 +26,7 @@ import carla_utils as cu
 from utils import GlobalDict
 from utils.gym_wrapper_img_nav import CARLAEnv
 from rl.encoder_RL_TD3 import TD3
+import psutil
 
 import os
 import cv2
@@ -376,7 +377,7 @@ def main():
     episode_reward = 0
     max_steps = 1e9
     total_steps = 0
-    max_episode_steps = 10000
+    max_episode_steps = 1000
     learning_starts = 2000  #2000
     episode_num = 0
 
@@ -438,6 +439,8 @@ def main():
             total_driving_metre += driving_metre_in_step 
 
             model.replay_buffer.push(state, action, reward, next_state, done)
+            print(sys.getsizeof(model.replay_buffer.buffer))
+            print(u'当前进程的内存使用：%.4f GB' % (psutil.Process(os.getpid()).memory_info().rss / 1024 / 1024 / 1024) )
             if len(model.replay_buffer) > max(learning_starts, model.batch_size):
                 # print("Start Train:")
                 time_s = time.time()

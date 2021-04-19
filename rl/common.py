@@ -54,9 +54,9 @@ class GaussianExploration(object):
     
     def get_action(self, action, t=0):
         #sigma  = self.max_sigma - (self.max_sigma - self.min_sigma) * min(1.0, t / self.decay_period)
-        self.sigma = self.sigma*0.99997 #0.9997 #0.99998
+        self.sigma = self.sigma*0.9999 #0.9999 #0.9997 #0.99998
         self.sigma = max(self.sigma, self.min_sigma)
-        action = action + np.random.normal(size=len(action)) * self.sigma
+        action = action + np.random.normal(loc=0, scale=0.2, size=len(action)) * self.sigma #0.2
         return np.clip(action, self.low, self.high)
 
 

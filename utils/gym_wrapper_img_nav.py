@@ -299,7 +299,6 @@ class CARLAEnv(gym.Env):
         self.destination = ref_route[-1][0].transform
         
 
-        
         self.global_dict['plan_map'], self.destination = replan(self.agent, self.destination, copy.deepcopy(self.origin_map), self.spawn_points, ref_route)
         
         show_plan = cv2.cvtColor(np.asarray(self.global_dict['plan_map']), cv2.COLOR_BGR2RGB)

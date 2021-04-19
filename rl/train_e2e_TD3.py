@@ -53,7 +53,7 @@ class TD3():
         np.random.seed(self.seed)
 
         self.noise = GaussianExploration(
-            gym.spaces.Box(low=np.array([-0.6]), high=np.array([-0.6]), dtype=np.float32),
+            gym.spaces.Box(low=np.array([-0.5]), high=np.array([0.5]), dtype=np.float32),
             max_sigma=0.5, min_sigma=0.05,
             decay_period=self.noise_decay_steps)
         
@@ -78,8 +78,8 @@ class TD3():
         
         self.value_criterion = nn.MSELoss()
         
-        policy_lr = 1e-4
-        value_lr  = 1e-4
+        policy_lr = 5e-5
+        value_lr  = 5e-5
 
         # yujiyu
         # policy_lr = 1e-6
@@ -93,9 +93,9 @@ class TD3():
         # self.policy_optimizer = optim.SGD(self.policy_net.parameters(), lr=policy_lr, weight_decay=5e-4)
 
         # yujiyu 
-        self.value_optimizer1 = optim.Adam(self.value_net1.parameters(), lr=value_lr, weight_decay=5e-4)
-        self.value_optimizer2 = optim.Adam(self.value_net2.parameters(), lr=value_lr, weight_decay=5e-4)
-        self.policy_optimizer = optim.Adam(self.policy_net.parameters(), lr=policy_lr, weight_decay=5e-4)
+        self.value_optimizer1 = optim.Adam(self.value_net1.parameters(), lr=value_lr)
+        self.value_optimizer2 = optim.Adam(self.value_net2.parameters(), lr=value_lr)
+        self.policy_optimizer = optim.Adam(self.policy_net.parameters(), lr=policy_lr)
         
         self.replay_buffer = ReplayBuffer(self.buffer_size)
         
@@ -125,8 +125,9 @@ class TD3():
         # print('train type', state.shape)
         # print('train shape[0]', state[0].shape)
         # print('train type[0]', type(state[0]))
-        state      = torch.from_numpy(state).to(device)
-        next_state = torch.from_numpy(next_state).to(device)
+        # state      = torch.from_numpy(state).to(device)
+        state      = torch.cat([item['img_nav'].unsqueeze(0) for item in state], dim=0).to(device)
+        next_state = torch.cat([item['img_nav'].unsqueeze(0) for item in next_state], dim=0).to(device)
         action     = torch.FloatTensor(action).to(device)
         reward     = torch.FloatTensor(reward).unsqueeze(1).to(device)
         done       = torch.FloatTensor(np.float32(done)).unsqueeze(1).to(device)
@@ -135,7 +136,7 @@ class TD3():
         noise = torch.normal(torch.zeros(next_action.size()), noise_std).to(device)
         noise = torch.clamp(noise, -noise_clip, noise_clip)
         next_action += noise
-        next_action = torch.clamp(next_action, -0.6, 0.6)
+        next_action = torch.clamp(next_action, -0.5, 0.5)
     
         target_q_value1  = self.target_value_net1(next_state, next_action)
         target_q_value2  = self.target_value_net2(next_state, next_action)
@@ -157,12 +158,12 @@ class TD3():
 
         self.value_optimizer1.zero_grad()
         value_loss1.backward()
-        torch.nn.utils.clip_grad_value_(self.value_net1.parameters(), clip_value=1)
+        # torch.nn.utils.clip_grad_value_(self.value_net1.parameters(), clip_value=1)
         self.value_optimizer1.step()
     
         self.value_optimizer2.zero_grad()
         value_loss2.backward()
-        torch.nn.utils.clip_grad_value_(self.value_net2.parameters(), clip_value=1)
+        # torch.nn.utils.clip_grad_value_(self.value_net2.parameters(), clip_value=1)
         self.value_optimizer2.step()
     
         if step % self.policy_freq == 0:
@@ -175,7 +176,7 @@ class TD3():
     
             self.policy_optimizer.zero_grad()
             policy_loss.backward()
-            torch.nn.utils.clip_grad_value_(self.policy_net.parameters(), clip_value=1)
+            # torch.nn.utils.clip_grad_value_(self.policy_net.parameters(), clip_value=1)
             self.policy_optimizer.step()
     
             soft_update(self.value_net1, self.target_value_net1, soft_tau=self.tau)
