@@ -128,7 +128,7 @@ class CARLAEnv(gym.Env):
 
             if self.global_dict['collision']:
                 self.done = True
-                self.reward -= 10.  #-50
+                self.reward -= 1.  #-50
                 print('collision !')
                 break
             if close2dest(self.vehicle, self.destination, dist=5):
@@ -142,7 +142,7 @@ class CARLAEnv(gym.Env):
             control = carla.VehicleControl(throttle=throttle, brake=brake, steer=steer)
             self.vehicle.apply_control(control)
             self.world.tick()
-            visualize(self.global_dict['view_img'], self.global_dict['nav'], self.global_dict['v0'], self.global_dict['img'] )
+            # visualize(self.global_dict['view_img'], self.global_dict['nav'], self.global_dict['v0'], self.global_dict['img'] )
             # time.sleep(0.01)
 
         waypoint1, _, diff_rad = self.find_waypoint()
@@ -279,11 +279,11 @@ class CARLAEnv(gym.Env):
         
         self.global_dict['plan_map'], self.destination, ref_route, start_point= replan(self.world_map, self.vehicle, self.agent, self.destination, copy.deepcopy(self.origin_map), self.spawn_points)
         
-        show_plan = cv2.cvtColor(np.asarray(self.global_dict['plan_map']), cv2.COLOR_BGR2RGB)
-        cv2.namedWindow('plan_map', 0)    
-        cv2.resizeWindow('plan_map', 600, 600)   # 自己设定窗口图片的大小
-        cv2.imshow('plan_map', show_plan)
-        cv2.waitKey(1)
+        # show_plan = cv2.cvtColor(np.asarray(self.global_dict['plan_map']), cv2.COLOR_BGR2RGB)
+        # cv2.namedWindow('plan_map', 0)    
+        # cv2.resizeWindow('plan_map', 600, 600)   # 自己设定窗口图片的大小
+        # cv2.imshow('plan_map', show_plan)
+        # cv2.waitKey(1)
 
         self.global_dict['collision'] = False
         
