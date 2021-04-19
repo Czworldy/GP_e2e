@@ -264,25 +264,26 @@ class CARLAEnv(gym.Env):
         # start_point = random.choice(self.spawn_points)
         # self.destination = random.choice(self.spawn_points)
         # yujiyu
+        self.vehicle.set_velocity(carla.Vector3D(x=0.0, y=0.0, z=0.0))
         junctions = get_junctions(self.waypoint_tuple_list)
 
         start_point = random.choice(junctions).transform
         # start_point = self.spawn_points[1]  #1
-        self.vehicle.set_transform(start_point)
-        self.vehicle.set_velocity(carla.Vector3D(x=0.0, y=0.0, z=0.0))
+        # self.vehicle.set_transform(start_point)
+        
         for _ in range(10):
             self.world.tick()
 
-        ref_route = get_reference_route(self.world_map, self.vehicle, 50, 0.05)
+        ref_route = get_reference_route(self.world_map, start_point.location, 50, 0.05)
         self.destination = ref_route[-1][0].transform
         
-        self.global_dict['plan_map'], self.destination, ref_route = replan(self.world_map, self.vehicle, self.agent, self.destination, copy.deepcopy(self.origin_map), self.spawn_points)
+        self.global_dict['plan_map'], self.destination, ref_route, start_point= replan(self.world_map, self.vehicle, self.agent, self.destination, copy.deepcopy(self.origin_map), self.spawn_points)
         
-        # show_plan = cv2.cvtColor(np.asarray(self.global_dict['plan_map']), cv2.COLOR_BGR2RGB)
-        # cv2.namedWindow('plan_map', 0)    
-        # cv2.resizeWindow('plan_map', 600, 600)   # 自己设定窗口图片的大小
-        # cv2.imshow('plan_map', show_plan)
-        # cv2.waitKey(1)
+        show_plan = cv2.cvtColor(np.asarray(self.global_dict['plan_map']), cv2.COLOR_BGR2RGB)
+        cv2.namedWindow('plan_map', 0)    
+        cv2.resizeWindow('plan_map', 600, 600)   # 自己设定窗口图片的大小
+        cv2.imshow('plan_map', show_plan)
+        cv2.waitKey(1)
 
         self.global_dict['collision'] = False
         
