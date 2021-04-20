@@ -192,8 +192,9 @@ class CARLAEnv(gym.Env):
 
         vehicle_current_yaw_rad = self._angle_normalize(np.deg2rad(vehicle_current_yaw))
 
-        cos_yaw = np.cos(vehicle_current_yaw)
-        sin_yaw = np.sin(vehicle_current_yaw)
+        cos_yaw = np.cos(vehicle_current_yaw_rad)
+        sin_yaw = np.sin(vehicle_current_yaw_rad)
+        # print(cos_yaw,sin_yaw,vehicle_current_yaw_rad)
 
         s.append(self.route_trace[index][0].transform.location)
 
@@ -202,9 +203,9 @@ class CARLAEnv(gym.Env):
 
         # if index + 2 < len(self.route_trace) - 1 :
         for i in range(self.input_point-1):
-            if index+1+i < len(self.route_trace)-1:
-                s.append(self.route_trace[index+i+1][0].transform.location)
-                yaw2 = self._angle_normalize(np.deg2rad(self.route_trace[index+i+1][0].transform.rotation.yaw))
+            if index+(1+i)*50 < len(self.route_trace)-1:
+                s.append(self.route_trace[index+(i+1)*50][0].transform.location)
+                yaw2 = self._angle_normalize(np.deg2rad(self.route_trace[index+(i+1)*50][0].transform.rotation.yaw))
                 state_yaw.append(self._angle_normalize(yaw2 - vehicle_current_yaw_rad))
             else:
                 s.append(self.route_trace[-1][0].transform.location)
@@ -231,6 +232,14 @@ class CARLAEnv(gym.Env):
         
         self.state = copy.deepcopy(np.array([state_x,state_y,state_yaw]).reshape(30))
         # print(self.state)
+        # plt.cla()
+        # plt.title("waypoint") 
+        # plt.xlim(-1, 1)
+        # plt.ylim(-1, 1)
+        # plt.plot(self.state[:10],self.state[10:20],'b-+')
+        # # plt.show()
+        # plt.axis('equal')
+        # plt.pause(0.001)
 
 
         return self.state, self.reward, self.done
@@ -284,7 +293,7 @@ class CARLAEnv(gym.Env):
         for _ in range(3):
             self.world.tick()
 
-        ref_route = get_reference_route(self.world_map, start_point.location, 50, 1)
+        ref_route = get_reference_route(self.world_map, start_point.location, 50, 0.02)
         self.destination = ref_route[-1][0].transform
         
         # self.global_dict['plan_map'], self.destination, ref_route, start_point= replan(self.world_map, self.vehicle, self.agent, self.destination, copy.deepcopy(self.origin_map), self.spawn_points)
@@ -320,8 +329,9 @@ class CARLAEnv(gym.Env):
 
         vehicle_current_yaw_rad = self._angle_normalize(np.deg2rad(vehicle_current_yaw))
 
-        cos_yaw = np.cos(vehicle_current_yaw)
-        sin_yaw = np.sin(vehicle_current_yaw)
+        cos_yaw = np.cos(vehicle_current_yaw_rad)
+        sin_yaw = np.sin(vehicle_current_yaw_rad)
+        # print(cos_yaw,sin_yaw,vehicle_current_yaw_rad)
 
         s.append(self.route_trace[index][0].transform.location)
 
@@ -330,9 +340,9 @@ class CARLAEnv(gym.Env):
 
         # if index + 2 < len(self.route_trace) - 1 :
         for i in range(self.input_point-1):
-            if index+1+i < len(self.route_trace)-1:
-                s.append(self.route_trace[index+i+1][0].transform.location)
-                yaw2 = self._angle_normalize(np.deg2rad(self.route_trace[index+i+1][0].transform.rotation.yaw))
+            if index+(1+i)*50 < len(self.route_trace)-1:
+                s.append(self.route_trace[index+(i+1)*50][0].transform.location)
+                yaw2 = self._angle_normalize(np.deg2rad(self.route_trace[index+(i+1)*50][0].transform.rotation.yaw))
                 state_yaw.append(self._angle_normalize(yaw2 - vehicle_current_yaw_rad))
             else:
                 s.append(self.route_trace[-1][0].transform.location)

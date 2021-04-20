@@ -96,7 +96,7 @@ class PPO(object):
         # Monte Carlo estimate of rewards:
         rewards = []
         discounted_reward = 0
-        for reward, is_terminal in zip(reversed(memory.rewards), reversed(memory.is_mterminals)):
+        for reward, is_terminal in zip(reversed(memory.rewards), reversed(memory.is_terminals)):
             if is_terminal:
                 discounted_reward = 0
             discounted_reward = reward + (self.gamma * discounted_reward)
@@ -142,7 +142,7 @@ def main():
     max_episodes = 10000        # max training episodes
     max_timesteps = 1500        # max timesteps in one episode
     
-    update_timestep = 4000      # update policy every n timesteps
+    update_timestep = 2000      # update policy every n timesteps
     action_std = 0.5            # constant std for action distribution (Multivariate Normal)
     K_epochs = 80               # update policy for K epochs
     eps_clip = 0.2              # clip parameter for PPO
