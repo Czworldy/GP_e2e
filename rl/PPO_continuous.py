@@ -26,14 +26,16 @@ class ActorCritic(nn.Module):
         super(ActorCritic, self).__init__()
         # action mean range -1 to 1
         self.actor =  nn.Sequential(
-                nn.Linear(state_dim, 64), nn.Tanh(),
-                nn.Linear(64, 32), nn.Tanh(),
+                nn.Linear(state_dim, 64), nn.ReLU(),
+                nn.Linear(64, 128), nn.ReLU(),
+                nn.Linear(128, 32), nn.ReLU(),
                 nn.Linear(32, action_dim), nn.Tanh()
                 )
         # critic
         self.critic = nn.Sequential(
-                nn.Linear(state_dim, 64), nn.Tanh(),
-                nn.Linear(64, 32), nn.Tanh(),
+                nn.Linear(state_dim, 64), nn.ReLU(),
+                nn.Linear(64, 128), nn.ReLU(),
+                nn.Linear(128, 32), nn.ReLU(),
                 nn.Linear(32, 1) 
         )
         self.action_var = torch.full((action_dim,), action_std*action_std).to(device)
@@ -94,7 +96,7 @@ class PPO(object):
         # Monte Carlo estimate of rewards:
         rewards = []
         discounted_reward = 0
-        for reward, is_terminal in zip(reversed(memory.rewards), reversed(memory.is_terminals)):
+        for reward, is_terminal in zip(reversed(memory.rewards), reversed(memory.is_mterminals)):
             if is_terminal:
                 discounted_reward = 0
             discounted_reward = reward + (self.gamma * discounted_reward)

@@ -58,7 +58,7 @@ global_transform = 0.
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
 parser = argparse.ArgumentParser(description='Params')
-parser.add_argument('--name', type=str, default="ppo_waypoint", help='name of the script') #rl-train-e2e-08
+parser.add_argument('--name', type=str, default="ppo_waypoint_01", help='name of the script') #rl-train-e2e-08
 args = parser.parse_args()
 
 log_path = '/home/cz/result/log/ppo/'+args.name+'/'
@@ -85,7 +85,7 @@ def main():
     client = carla.Client(config['host'], config['port'])
     client.set_timeout(config['timeout'])
     
-    world = client.load_world('Town01')
+    world = client.load_world('Town07')
 
     weather = carla.WeatherParameters(
         cloudiness=random.randint(0,10),
@@ -149,7 +149,7 @@ def main():
     time_step = 0
 
     ####
-    update_timestep = 40#4000      # update policy every n timesteps
+    update_timestep = 4000#4000      # update policy every n timesteps
     action_std = 0.5            # constant std for action distribution (Multivariate Normal)
     K_epochs = 80               # update policy for K epochs
     eps_clip = 0.2              # clip parameter for PPO
@@ -157,7 +157,7 @@ def main():
     lr = 0.0003                 # parameters for Adam optimizer
     betas = (0.9, 0.999)
     ####
-    state_dim = 9
+    state_dim = 30
     action_dim = 1
     memory = Memory()
     ppo = PPO(state_dim, action_dim, action_std, lr, betas, gamma, K_epochs, eps_clip)
@@ -195,11 +195,19 @@ def main():
             memory.rewards.append(reward)
             memory.is_terminals.append(done)
             # model.replay_buffer.push(state, action, reward, next_state, done)
-
+            if time_step % 200 == 0:
+                print("time_step:", time_step)
             if time_step % update_timestep == 0:
+                train_flag = True
+                print("Update policy!")
                 ppo.update(memory)
                 memory.clear_memory()
                 time_step = 0
+                directory = '/home/cz/result/saved_models/ppo/%s' % (args.name)
+                filename = '/home/cz/result/saved_models/ppo/%s/%s_policy.pth' %(args.name, str(episode_num))
+                if not os.path.exists(directory):
+                    os.makedirs(directory)
+                torch.save(ppo.policy.state_dict(), filename )
             
             # if len(model.replay_buffer) > max(learning_starts, model.batch_size):
             #     print("Start Train")
@@ -214,7 +222,7 @@ def main():
             total_steps += 1
             episode_timesteps += 1
             if done or episode_timesteps == max_episode_steps:
-                
+                # quit()
                 logger.add_scalar('episode_reward', episode_reward, episode_num)
                 logger.add_scalar('total_driving_metre', total_driving_metre, episode_num)
                 #if len(model.replay_buffer) > max(learning_starts, model.batch_size):
@@ -227,8 +235,16 @@ def main():
                 # else:
                 #     print('Fail')
                 # last_episode_reward = episode_reward
-                if episode_num % 20 == 0 and train_flag == True:
-                    torch.save(ppo.policy.state_dict(), '/home/cz/result/saved_models/ppo/%s_policy.pth' %(str(episode_num)) )
+
+
+                # if episode_num % 20 == 0 and train_flag == True:
+                #     directory = '/home/cz/result/saved_models/ppo/%s' % (args.name)
+                #     filename = '/home/cz/result/saved_models/ppo/%s/%s_policy.pth' %(args.name, str(episode_num))
+                #     if not os.path.exists(directory):
+                #         os.makedirs(directory)
+                #     torch.save(ppo.policy.state_dict(), filename )
+
+
                     # model.save(directory=ckpt_path, filename=str(episode_num)) 
                 break
     cv2.destroyAllWindows()

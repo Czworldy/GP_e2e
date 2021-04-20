@@ -117,7 +117,7 @@ class CARLAEnv(gym.Env):
 
             if self.global_dict['collision']:
                 self.done = True
-                self.reward -= 1.  #-50
+                # self.reward -= 10  #-50
                 print('collision !')
                 break
             if close2dest(self.vehicle, self.destination, dist=5):
@@ -229,8 +229,8 @@ class CARLAEnv(gym.Env):
         for i in range(len(state_yaw)):
             state_yaw[i] = state_yaw[i] / np.pi
         
-        self.state = copy.deepcopy(np.array([state_x,state_y,state_yaw]).reshape(9))
-        print(self.state)
+        self.state = copy.deepcopy(np.array([state_x,state_y,state_yaw]).reshape(30))
+        # print(self.state)
 
 
         return self.state, self.reward, self.done
@@ -328,20 +328,27 @@ class CARLAEnv(gym.Env):
         yaw1 = self._angle_normalize(np.deg2rad(self.route_trace[index][0].transform.rotation.yaw))
         state_yaw.append(self._angle_normalize(yaw1 - vehicle_current_yaw_rad))
 
-        if index + 2 < len(self.route_trace) - 1 :
-            s.append(self.route_trace[index+1][0].transform.location)
-            yaw2 = self._angle_normalize(np.deg2rad(self.route_trace[index+1][0].transform.rotation.yaw))
-            state_yaw.append(self._angle_normalize(yaw2 - vehicle_current_yaw_rad))
+        # if index + 2 < len(self.route_trace) - 1 :
+        for i in range(self.input_point-1):
+            if index+1+i < len(self.route_trace)-1:
+                s.append(self.route_trace[index+i+1][0].transform.location)
+                yaw2 = self._angle_normalize(np.deg2rad(self.route_trace[index+i+1][0].transform.rotation.yaw))
+                state_yaw.append(self._angle_normalize(yaw2 - vehicle_current_yaw_rad))
+            else:
+                s.append(self.route_trace[-1][0].transform.location)
+                yaw2 = self._angle_normalize(np.deg2rad(self.route_trace[-1][0].transform.rotation.yaw))
+                state_yaw.append(self._angle_normalize(yaw2 - vehicle_current_yaw_rad))
 
-            s.append(self.route_trace[index+2][0].transform.location)
-            yaw3 = self._angle_normalize(np.deg2rad(self.route_trace[index+2][0].transform.rotation.yaw))
-            state_yaw.append(self._angle_normalize(yaw3 - vehicle_current_yaw_rad))
-        else:
-            s.append(self.route_trace[index][0].transform.location)
-            state_yaw.append(self._angle_normalize(yaw1 - vehicle_current_yaw_rad))
 
-            s.append(self.route_trace[index][0].transform.location)
-            state_yaw.append(self._angle_normalize(yaw1 - vehicle_current_yaw_rad))
+            # s.append(self.route_trace[index+2][0].transform.location)
+            # yaw3 = self._angle_normalize(np.deg2rad(self.route_trace[index+2][0].transform.rotation.yaw))
+            # state_yaw.append(self._angle_normalize(yaw3 - vehicle_current_yaw_rad))
+        # else:
+        #     s.append(self.route_trace[index][0].transform.location)
+        #     state_yaw.append(self._angle_normalize(yaw1 - vehicle_current_yaw_rad))
+
+        #     s.append(self.route_trace[index][0].transform.location)
+        #     state_yaw.append(self._angle_normalize(yaw1 - vehicle_current_yaw_rad))
         for s1 in s:
             x1 = s1.x - vehicle_current_x
             y1 = s1.y - vehicle_current_y
@@ -350,8 +357,8 @@ class CARLAEnv(gym.Env):
         for i in range(len(state_yaw)):
             state_yaw[i] = state_yaw[i] / np.pi
         
-        self.state = copy.deepcopy(np.array([state_x,state_y,state_yaw]).reshape(9))
-        print(self.state)
+        self.state = copy.deepcopy(np.array([state_x,state_y,state_yaw]).reshape(30))
+        # print(self.state)
 
         self.done = False
         self.reward = 0.0
