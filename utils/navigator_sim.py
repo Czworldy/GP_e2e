@@ -87,7 +87,7 @@ def get_nav(vehicle, plan_map, town=1):
     
     im_rotate = _nav.rotate(vehicle.get_transform().rotation.yaw+90)
 
-    im_rotate = im_rotate.transpose(Image.FLIP_LEFT_RIGHT)
+    # im_rotate = im_rotate.transpose(Image.FLIP_LEFT_RIGHT) ##yujiyu !!!!!
     WIDTH = 160
     HIGHT = 80
     nav = im_rotate.crop((_nav.size[0]//2-WIDTH, _nav.size[1]//2-2*HIGHT, _nav.size[0]//2+WIDTH, _nav.size[1]//2))
