@@ -44,7 +44,7 @@ class ActorCritic(nn.Module):
     def forward(self):
         raise NotImplementedError
     
-    def act(self, state, memory):
+    def act(self, state, memory, is_test):
         action_mean = self.actor(state)
         cov_mat = torch.diag(self.action_var).to(device)
         
@@ -56,7 +56,7 @@ class ActorCritic(nn.Module):
         memory.actions.append(action)
         memory.logprobs.append(action_logprob)
         
-        return action.detach()
+        return action.detach() if is_test == False else action_mean.detach()
     
     def evaluate(self, state, action):   
         action_mean = self.actor(state)
@@ -88,9 +88,9 @@ class PPO(object):
         
         self.MseLoss = nn.MSELoss()
     
-    def select_action(self, state, memory):
+    def select_action(self, state, memory, is_test=False):
         state = torch.FloatTensor(state.reshape(1, -1)).to(device)
-        return self.policy_old.act(state, memory).cpu().data.numpy().flatten()
+        return self.policy_old.act(state, memory, is_test).cpu().data.numpy().flatten()
     
     def update(self, memory):
         # Monte Carlo estimate of rewards:

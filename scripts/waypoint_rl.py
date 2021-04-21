@@ -58,7 +58,7 @@ global_transform = 0.
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
 parser = argparse.ArgumentParser(description='Params')
-parser.add_argument('--name', type=str, default="ppo_waypoint_01", help='name of the script') #rl-train-e2e-08
+parser.add_argument('--name', type=str, default="test", help='name of the script') #rl-train-e2e-08
 args = parser.parse_args()
 
 log_path = '/home/cz/result/log/ppo/'+args.name+'/'
@@ -142,27 +142,31 @@ def main():
     episode_reward = 0
     max_steps = 1e9
     total_steps = 0
-    max_episode_steps = 2000
-    # learning_starts = 3000  #2000
+    max_episode_steps = 3000
     episode_num = 0
 
     time_step = 0
 
-    ####
-    update_timestep = 4000#4000      # update policy every n timesteps
+    ############## Hyperparameters ##############
+    update_timestep = 6000      # update policy every n timesteps
     action_std = 0.5            # constant std for action distribution (Multivariate Normal)
     K_epochs = 80               # update policy for K epochs
     eps_clip = 0.2              # clip parameter for PPO
     gamma = 0.99                # discount factor
     lr = 0.0003                 # parameters for Adam optimizer
     betas = (0.9, 0.999)
-    ####
+    is_test = True              # set is test model or not
+    #############################################
     state_dim = 30
     action_dim = 1
     memory = Memory()
     ppo = PPO(state_dim, action_dim, action_std, lr, betas, gamma, K_epochs, eps_clip)
-
-    train_flag = False
+    try:
+        ppo.policy.load_state_dict(torch.load('/home/cz/result/saved_models/ppo/ppo_waypoint_04/5574_policy.pth'))
+        ppo.policy_old.load_state_dict(torch.load('/home/cz/result/saved_models/ppo/ppo_waypoint_04/5574_policy.pth'))
+        print('load success')
+    except:
+        raise ValueError('load model faid')
     while total_steps < max_steps:
         global global_transform
         print("total_episode:", episode_num)
@@ -177,7 +181,7 @@ def main():
         for _ in range(max_episode_steps):
             time_step += 1
 
-            action = ppo.select_action(state, memory)
+            action = ppo.select_action(state, memory, is_test=is_test)
             # print(action)
 
 
@@ -197,8 +201,7 @@ def main():
             # model.replay_buffer.push(state, action, reward, next_state, done)
             if time_step % 200 == 0:
                 print("time_step:", time_step)
-            if time_step % update_timestep == 0:
-                train_flag = True
+            if time_step % update_timestep == 0 and is_test == False:
                 print("Update policy!")
                 ppo.update(memory)
                 memory.clear_memory()

@@ -68,10 +68,6 @@ def visualize(img, speed):
 #     return nav_map
     
 class CARLAEnv(gym.Env):
-    metadata = {
-        'render.modes': ['human', 'rgb_array'],
-        'video.frames_per_second': 60
-    }
 
     def __init__(self, world, vehicle, global_dict, args):
         self.world = world
@@ -109,11 +105,11 @@ class CARLAEnv(gym.Env):
     def step(self, action):
 
         # throttle = action[0].astype("float64")
-        steer = action[0].astype("float64")
+        steer = action[0].astype("float64") * 0.6
 
         self.reward = 0.
 
-        for _ in range(4): #50
+        for _ in range(4): #4 #50
 
             if self.global_dict['collision']:
                 self.done = True
@@ -122,12 +118,12 @@ class CARLAEnv(gym.Env):
                 break
             if close2dest(self.vehicle, self.destination, dist=5):
                 self.done = True
-                self.reward += 10.   # reward += 100
+                self.reward += 1.   # reward += 100
                 print('Success !')
                 break
             current_speed_carla = self.vehicle.get_velocity()
             current_speed_kmh = np.sqrt(current_speed_carla.x**2+current_speed_carla.y**2) * 3.6
-            throttle, brake = self.pid.run_step(current_speed_kmh, 16.)
+            throttle, brake = self.pid.run_step(current_speed_kmh, 18.)
             control = carla.VehicleControl(throttle=throttle, brake=brake, steer=steer)
             self.vehicle.apply_control(control)
             self.world.tick()
@@ -138,47 +134,44 @@ class CARLAEnv(gym.Env):
         vehicle_current_x = self.vehicle.get_transform().location.x
         vehicle_current_y = self.vehicle.get_transform().location.y
         vehicle_current_yaw = self.vehicle.get_transform().rotation.yaw
-        v = self.vehicle.get_velocity()
+        # v = self.vehicle.get_velocity()
         # waypoint = self.world_map.get_waypoint(self.vehicle.get_transform().location)
 
         trace_dist = np.sqrt((waypoint1.location.x - vehicle_current_x) ** 2 + (waypoint1.location.y - vehicle_current_y) ** 2)
         
-        if waypoint1 is not None:
-            lane_x = waypoint1.location.x
-            lane_y = waypoint1.location.y
-            lane_offset = np.sqrt( (lane_x - vehicle_current_x) ** 2 + (lane_y - vehicle_current_y) ** 2) 
-            # print("lane_offset: %.2f"  %(lane_offset))
-            # if lane_offset > 0.7 and lane_offset <= 1.8:  #转弯的时候还是存在问题 route.py 解决
-            if lane_offset <= 3.0:
-                lane_reward = 1 - lane_offset
+        
+        lane_x = waypoint1.location.x
+        lane_y = waypoint1.location.y
+        lane_offset = np.sqrt( (lane_x - vehicle_current_x) ** 2 + (lane_y - vehicle_current_y) ** 2) 
+        # print("lane_offset: %.2f"  %(lane_offset))
+        # if lane_offset > 0.7 and lane_offset <= 1.8:  #转弯的时候还是存在问题 route.py 解决
+
+        # if lane_offset <= 1.2 and np.rad2deg(diff_rad) < :
+        #     lane_reward = -0.2*lane_offset+0.1
+            
+        # # elif lane_offset > 1.5 and lane_offset <= 3.3:
+        # #     lane_reward = (0.7 - lane_offset)
+        # elif lane_offset > 1.2:
+        #     print('off line!')
+        #     self.done = True
+        #     lane_reward = 0
+        #     self.reward -= 2
+        # else:
+        #     lane_reward = 0
                 
-            # elif lane_offset > 1.5 and lane_offset <= 3.3:
-            #     lane_reward = (0.7 - lane_offset)
-            elif lane_offset > 3.0:
-                print('off line!')
-                self.done = True
-                lane_reward = 0
-                self.reward -= 4
-            else:
-                lane_reward = 0
-                
-        else:
-            print('waypoint not found!')
-            lane_reward = -4
-        yaw_reward = -3 * diff_rad/ np.pi
+        # yaw_reward = -0.2*diff_rad+0.1
+
+        lane_reward = -0.2*lane_offset + 0.1
+        yaw_reward  = -0.2*diff_rad + 0.1
         self.reward += yaw_reward
         self.reward += lane_reward
-        
-        kmh = np.sqrt(v.x**2+v.y**2) * 3.6
-        # if kmh < 10:
-        #     kmh_reward = (kmh - 10) / 10.
-        # else:
-        #     kmh_reward = (kmh - 10) / 10.
-        kmh_reward = (kmh - 10) / 10.
-        self.reward += kmh_reward
+
+        if lane_offset > 1.0 or np.rad2deg(diff_rad) > 30:
+            self.done = True
+            self.reward = -2
 
 
-        print( "reward: %.2f , lane_reward: %.2f , trace_dist: %.2f , yaw_reward:%.2f , kmh_reward:%.2f" % (self.reward, lane_reward, trace_dist, yaw_reward,kmh_reward) )
+        print( "reward: %.2f , lane_reward: %.2f , trace_dist: %.2f , yaw_reward:%.2f , err_deg:%.2f" % (self.reward, lane_reward, trace_dist, yaw_reward, np.rad2deg(diff_rad)) )
         # print("trace_dist: %.2f" % (trace_dist))
         # self.state = copy.deepcopy(self.global_dict['img_nav'])
         vehicle_current_x = self.vehicle.get_transform().location.x
@@ -239,7 +232,7 @@ class CARLAEnv(gym.Env):
         # plt.plot(self.state[:10],self.state[10:20],'b-+')
         # # plt.show()
         # plt.axis('equal')
-        # plt.pause(0.001)
+        # plt.pause(1)
 
 
         return self.state, self.reward, self.done
@@ -280,20 +273,20 @@ class CARLAEnv(gym.Env):
         return self.route_trace[index][0].transform, index, err
         
     def reset(self):
-        # start_point = random.choice(self.spawn_points)
+        start_point = random.choice(self.spawn_points)
         # self.destination = random.choice(self.spawn_points)
         # yujiyu
         self.vehicle.set_velocity(carla.Vector3D(x=0.0, y=0.0, z=0.0))
-        junctions = get_junctions(self.waypoint_tuple_list)
+        # junctions = get_junctions(self.waypoint_tuple_list)
 
-        start_point = random.choice(junctions).transform
+        # start_point = random.choice(junctions).transform
         # start_point = self.spawn_points[1]  #1
         # self.vehicle.set_transform(start_point)
         
-        for _ in range(3):
+        for _ in range(2):
             self.world.tick()
 
-        ref_route = get_reference_route(self.world_map, start_point.location, 50, 0.02)
+        ref_route = get_reference_route(self.world_map, start_point.location, 300, 0.02)
         self.destination = ref_route[-1][0].transform
         
         # self.global_dict['plan_map'], self.destination, ref_route, start_point= replan(self.world_map, self.vehicle, self.agent, self.destination, copy.deepcopy(self.origin_map), self.spawn_points)
@@ -313,7 +306,7 @@ class CARLAEnv(gym.Env):
         self.route_trace = ref_route
         start_point.rotation = self.route_trace[0][0].transform.rotation
         self.vehicle.set_transform(start_point)
-        for _ in range(5):
+        for _ in range(3):
             self.vehicle.set_velocity(carla.Vector3D(x=0.0, y=0.0, z=0.0))
             self.world.tick()
 
@@ -384,3 +377,14 @@ class CARLAEnv(gym.Env):
         elif angle < -np.pi:
             angle += 2*np.pi
         return angle
+
+
+        # _, lateral_e, theta_e = agent.global_path.error(agent.get_transform())
+
+
+        # reward = (-0.2*abs(lateral_e)+0.1) + (-0.2*abs(theta_e)+0.1)
+
+        # if abs(lateral_e) > 1 or abs(theta_e) > np.deg2rad(60):
+        #     epoch_info.done = True
+        #     reward = -2
+        # return reward, epoch_info
