@@ -59,7 +59,7 @@ global_transform = 0.
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
 parser = argparse.ArgumentParser(description='Params')
-parser.add_argument('--name', type=str, default="e2e_ppo_01", help='name of the script') #rl-train-e2e-08
+parser.add_argument('--name', type=str, default="test", help='name of the script') #rl-train-e2e-08
 args = parser.parse_args()
 
 log_path = '/home/cz/result/log/ppo/'+args.name+'/'
@@ -140,7 +140,7 @@ def main():
     # max_steer_angle = np.deg2rad(physics_control.wheels[0].max_steer_angle)
     sensor_dict = {
         'camera':{
-            'transform':carla.Transform(carla.Location(x=0.5, y=0.0, z=2.5)),
+            'transform':carla.Transform(carla.Location(x=0.5, y=0.0, z=2.5), carla.Rotation(pitch=-15)),
             'callback':image_callback,
             },
         'camera:view':{
@@ -166,31 +166,31 @@ def main():
     episode_reward = 0
     max_steps = 1e9
     total_steps = 0
-    max_episode_steps = 3000
+    max_episode_steps = 600
     episode_num = 0
 
     time_step = 0
 
     ############## Hyperparameters ##############
-    update_timestep = 300      # update policy every n timesteps
-    action_std = 0.5            # constant std for action distribution (Multivariate Normal)
+    update_timestep = 300       # update policy every n timesteps
+    action_std = 0.3            # constant std for action distribution (Multivariate Normal)  #0.5
     K_epochs = 80               # update policy for K epochs
     eps_clip = 0.2              # clip parameter for PPO
-    gamma = 0.99                # discount factor
+    gamma = 0.97                # discount factor 0.99
     lr = 0.0003                 # parameters for Adam optimizer
     betas = (0.9, 0.999)
-    is_test = False             # set is test model or not
+    is_test = True             # set is test model or not
     #############################################
     state_dim = 30
     action_dim = 1
     memory = Memory()
     ppo = PPO(state_dim, action_dim, action_std, lr, betas, gamma, K_epochs, eps_clip)
-    # try:
-    #     ppo.policy.load_state_dict(torch.load('/home/cz/result/saved_models/ppo/ppo_waypoint_04/5574_policy.pth'))
-    #     ppo.policy_old.load_state_dict(torch.load('/home/cz/result/saved_models/ppo/ppo_waypoint_04/5574_policy.pth'))
-    #     print('load success')
-    # except:
-    #     raise ValueError('load model faid')
+    try:
+        ppo.policy.load_state_dict(torch.load('/home/cz/result/saved_models/ppo/ppo_waypoint_06/516_policy.pth'))
+        ppo.policy_old.load_state_dict(torch.load('/home/cz/result/saved_models/ppo/ppo_waypoint_06/516_policy.pth'))
+        print('load success')
+    except:
+        raise ValueError('load model faid')
     while total_steps < max_steps:
         global global_transform
         print("total_episode:", episode_num)
@@ -201,7 +201,7 @@ def main():
         total_driving_metre = 0
 
         state, waypoint = env.reset()
-
+        want_to_train = False
         for _ in range(max_episode_steps):
             time_step += 1
 
@@ -226,7 +226,8 @@ def main():
             if time_step % 200 == 0:
                 print("time_step:", time_step)
             if time_step % update_timestep == 0 and is_test == False:
-                
+                want_to_train = True
+            if want_to_train == True and done == True:
                 print("Update policy!")
                 ppo.update(memory)
                 memory.clear_memory()
@@ -236,6 +237,7 @@ def main():
                 if not os.path.exists(directory):
                     os.makedirs(directory)
                 torch.save(ppo.policy.state_dict(), filename )
+                want_to_train = False
             
             # if len(model.replay_buffer) > max(learning_starts, model.batch_size):
             #     print("Start Train")

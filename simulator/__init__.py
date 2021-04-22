@@ -12,8 +12,8 @@ config = {
     'timeout': 5.0,
     'camera':{
         'role_name': 'front',
-        'img_length': 400,
-        'img_width': 200,
+        'img_length': 400, #400
+        'img_width': 125, #200
         'fov': 120,
         'fps': 30,
         },

@@ -47,9 +47,9 @@ class ActorCritic(nn.Module):
                 nn.Conv2d(128,              64,  3, stride=2, padding=1), nn.MaxPool2d(2, 2)
                 )
         self.actor_mlp = nn.Sequential(
-                nn.Linear(128, 128), nn.ReLU(),
-                nn.Linear(128, 64), nn.ReLU(),
-                nn.Linear(64, 1), nn.Tanh()
+                nn.Linear(128, 64), nn.LeakyReLU(),
+                nn.Linear(64, 32), nn.LeakyReLU(),
+                nn.Linear(32, 1), nn.Tanh()
         )
         # critic
         self.critic = nn.Sequential(
@@ -126,7 +126,7 @@ class PPO(object):
         img = Image.fromarray(cv2.cvtColor(state,cv2.COLOR_BGR2RGB))
         state = img_trans(img).unsqueeze(0)
         waypoint = torch.FloatTensor(waypoint.reshape(1, -1)).to(device)
-        return self.policy_old.act(state, memory, waypoint,is_test).cpu().data.numpy().flatten()
+        return self.policy_old.act(state, memory, waypoint, is_test).cpu().data.numpy().flatten()
     
     def update(self, memory):
         # Monte Carlo estimate of rewards:

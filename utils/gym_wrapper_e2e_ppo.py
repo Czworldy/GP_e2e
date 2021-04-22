@@ -107,18 +107,18 @@ class CARLAEnv(gym.Env):
     def step(self, action):
 
         # throttle = action[0].astype("float64")
-        steer = action[0].astype("float64") * 0.6
+        steer = action[0].astype("float64") * 0.5
 
         self.reward = 0.
 
-        for _ in range(4): #4 #50
+        for _ in range(1): #4 #50
 
             if self.global_dict['collision']:
                 self.done = True
-                # self.reward -= 10  #-50
+                self.reward -= 1  #-50
                 print('collision !')
                 break
-            if close2dest(self.vehicle, self.destination, dist=5):
+            if close2dest(self.vehicle, self.destination, dist=2):
                 self.done = True
                 self.reward += 1.   # reward += 100
                 print('Success !')
@@ -168,7 +168,7 @@ class CARLAEnv(gym.Env):
         self.reward += yaw_reward
         self.reward += lane_reward
 
-        if lane_offset > 1.0 or np.rad2deg(diff_rad) > 30:
+        if lane_offset > 2.0 or np.rad2deg(diff_rad) > 50:
             self.done = True
             self.reward = -2
 
@@ -277,20 +277,20 @@ class CARLAEnv(gym.Env):
         return self.route_trace[index][0].transform, index, err
         
     def reset(self):
-        start_point = random.choice(self.spawn_points)
+        # start_point = random.choice(self.spawn_points)
         # self.destination = random.choice(self.spawn_points)
         # yujiyu
         self.vehicle.set_velocity(carla.Vector3D(x=0.0, y=0.0, z=0.0))
-        # junctions = get_junctions(self.waypoint_tuple_list)
+        junctions = get_junctions(self.waypoint_tuple_list)
 
-        # start_point = random.choice(junctions).transform
+        start_point = random.choice(junctions).transform
         # start_point = self.spawn_points[1]  #1
         # self.vehicle.set_transform(start_point)
         
         for _ in range(2):
             self.world.tick()
 
-        ref_route = get_reference_route(self.world_map, start_point.location, 300, 0.02)
+        ref_route = get_reference_route(self.world_map, start_point.location, 150, 0.02)
         self.destination = ref_route[-1][0].transform
         
         # self.global_dict['plan_map'], self.destination, ref_route, start_point= replan(self.world_map, self.vehicle, self.agent, self.destination, copy.deepcopy(self.origin_map), self.spawn_points)
