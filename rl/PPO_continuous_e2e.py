@@ -6,10 +6,14 @@ import numpy as np
 import torchvision.transforms as transforms
 from PIL import Image
 import cv2
+import random
+from tqdm import tqdm
+import time
+
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-img_height = 200
+img_height = 125
 img_width = 400
 img_transforms = [
     transforms.Resize((img_height, img_width)),
@@ -139,18 +143,45 @@ class PPO(object):
             rewards.insert(0, discounted_reward)
         
         # Normalizing the rewards:
-        rewards = torch.tensor(rewards, dtype=torch.float32).to(device)
-        rewards = (rewards - rewards.mean()) / (rewards.std() + 1e-5)
+        rewards_np = np.array(rewards)
+        # rewards = torch.tensor(rewards, dtype=torch.float32).to(device)
+        # rewards = (rewards - rewards.mean()) / (rewards.std() + 1e-5)
         
         # convert list to tensor
-        old_states = torch.squeeze(torch.stack(memory.states).to(device), 1).detach()
-        old_actions = torch.squeeze(torch.stack(memory.actions).to(device), 1).detach()
-        old_logprobs = torch.squeeze(torch.stack(memory.logprobs), 1).to(device).detach()
 
-        old_waypoint = torch.squeeze(torch.stack(memory.waypoint), 1).to(device).detach()
 
+        # old_states = torch.squeeze(torch.stack(memory.states).to(device), 1).detach()
+        # old_actions = torch.squeeze(torch.stack(memory.actions).to(device), 1).detach()
+
+        # old_logprobs = torch.squeeze(torch.stack(memory.logprobs), 1).to(device).detach()
+
+        # old_waypoint = torch.squeeze(torch.stack(memory.waypoint), 1).to(device).detach()
+
+        batch_size = 128
         # Optimize policy for K epochs:
-        for _ in range(self.K_epochs):
+        # for _ in range(self.K_epochs):
+        for i in tqdm(range(self.K_epochs), desc='Update policy'):
+
+            index = np.random.choice(len(memory.actions), size=batch_size)
+
+            states = np.array([t.squeeze(0).numpy() for t in memory.states])
+            actions = np.array(memory.actions)
+            logprobs = np.array(memory.logprobs)
+            waypoints = np.array([w.squeeze(0).numpy() for w in memory.waypoint])
+
+            batch_states = states[index]
+            batch_actions = actions[index]
+            batch_logprobs = logprobs[index]
+            batch_waypoints = waypoints[index]
+            batch_rewards = rewards_np[index]
+
+            old_states = torch.from_numpy(batch_states).to(device)
+            old_actions = torch.from_numpy(batch_actions).unsqueeze(1).to(device)
+            old_logprobs = torch.from_numpy(batch_logprobs).to(device)
+            old_waypoint = torch.from_numpy(batch_waypoints).to(device)
+            rewards = torch.tensor(batch_rewards, dtype=torch.float32).to(device)
+            rewards = (rewards - rewards.mean()) / (rewards.std() + 1e-5)
+
             # Evaluating old actions and values :
             logprobs, state_values, dist_entropy = self.policy.evaluate(old_states, old_actions, old_waypoint)
             
@@ -167,6 +198,7 @@ class PPO(object):
             self.optimizer.zero_grad()
             loss.mean().backward()
             self.optimizer.step()
+
             
         # Copy new weights into old policy:
         self.policy_old.load_state_dict(self.policy.state_dict())
@@ -259,4 +291,25 @@ def main():
             
 if __name__ == '__main__':
     main()
-    
+                
+            # index = np.random.choice(len(memory.actions), size=batch_size)
+
+            # states = np.array(memory.states)
+            # actions = np.array(memory.actions)
+            # logprobs = np.array(memory.logprobs)
+            # waypoints = np.array(memory.waypoint)
+
+            
+
+            # states_tensor = torch.FloatTensor(states[index])
+            # actions_tensor = torch.FloatTensor(actions[index])
+            # logprobs_tensor = torch.FloatTensor(logprobs[index])
+            # waypoints_tensor = torch.FloatTensor(waypoints[index])
+
+            # print(actions_tensor)
+            
+            # old_states = torch.squeeze(torch.stack(states_tensor).to(device), 1).detach()
+            # old_actions = torch.squeeze(torch.stack(actions_tensor).to(device), 1).detach()
+            # old_logprobs = torch.squeeze(torch.stack(logprobs_tensor), 1).to(device).detach()
+
+            # old_waypoint = torch.squeeze(torch.stack(waypoints_tensor), 1).to(device).detach()

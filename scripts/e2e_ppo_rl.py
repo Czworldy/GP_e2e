@@ -166,17 +166,17 @@ def main():
     episode_reward = 0
     max_steps = 1e9
     total_steps = 0
-    max_episode_steps = 600
+    max_episode_steps = 4000 #600
     episode_num = 0
 
     time_step = 0
 
     ############## Hyperparameters ##############
-    update_timestep = 300       # update policy every n timesteps
+    update_timestep = 2000       # update policy every n timesteps
     action_std = 0.3            # constant std for action distribution (Multivariate Normal)  #0.5
     K_epochs = 80               # update policy for K epochs
     eps_clip = 0.2              # clip parameter for PPO
-    gamma = 0.97                # discount factor 0.99
+    gamma = 0.96                # discount factor 0.99
     lr = 0.0003                 # parameters for Adam optimizer
     betas = (0.9, 0.999)
     is_test = True             # set is test model or not
@@ -186,8 +186,8 @@ def main():
     memory = Memory()
     ppo = PPO(state_dim, action_dim, action_std, lr, betas, gamma, K_epochs, eps_clip)
     try:
-        ppo.policy.load_state_dict(torch.load('/home/cz/result/saved_models/ppo/ppo_waypoint_06/516_policy.pth'))
-        ppo.policy_old.load_state_dict(torch.load('/home/cz/result/saved_models/ppo/ppo_waypoint_06/516_policy.pth'))
+        ppo.policy.load_state_dict(torch.load('/home/cz/result/saved_models/ppo/change-to-batch-01/1139_policy.pth'))
+        ppo.policy_old.load_state_dict(torch.load('/home/cz/result/saved_models/ppo/change-to-batch-01/1139_policy.pth'))
         print('load success')
     except:
         raise ValueError('load model faid')

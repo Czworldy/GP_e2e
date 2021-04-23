@@ -28,7 +28,7 @@ from .pid import LongPID
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-img_height = 200
+img_height = 125
 img_width = 400
 state_trans_0 = [
     transforms.Resize((img_height, img_width)),
@@ -290,7 +290,7 @@ class CARLAEnv(gym.Env):
         for _ in range(2):
             self.world.tick()
 
-        ref_route = get_reference_route(self.world_map, start_point.location, 150, 0.02)
+        ref_route = get_reference_route(self.world_map, start_point.location, 300, 0.02)
         self.destination = ref_route[-1][0].transform
         
         # self.global_dict['plan_map'], self.destination, ref_route, start_point= replan(self.world_map, self.vehicle, self.agent, self.destination, copy.deepcopy(self.origin_map), self.spawn_points)
