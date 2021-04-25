@@ -30,7 +30,6 @@ class Memory(object):
         self.rewards = []
         self.is_terminals = []
 
-        self.waypoint = []
     
     def clear_memory(self):
         del self.actions[:]
@@ -39,7 +38,6 @@ class Memory(object):
         del self.rewards[:]
         del self.is_terminals[:]
 
-        del self.waypoint[:]
 
 class ActorCritic(nn.Module):
     def __init__(self, critic_state_dim, actor_input_dim, action_dim, action_std):
@@ -51,15 +49,20 @@ class ActorCritic(nn.Module):
                 nn.Conv2d(128,              64,  3, stride=2, padding=1), nn.MaxPool2d(2, 2)
                 )
         self.actor_mlp = nn.Sequential(
+                nn.Linear(128, 128), nn.LeakyReLU(),
                 nn.Linear(128, 64), nn.LeakyReLU(),
-                nn.Linear(64, 32), nn.LeakyReLU(),
-                nn.Linear(32, 1), nn.Tanh()
+                nn.Linear(64, action_dim), nn.Tanh()
         )
         # critic
-        self.critic = nn.Sequential(
-                nn.Linear(critic_state_dim, 64), nn.ReLU(),
-                nn.Linear(64, 128), nn.ReLU(),
-                nn.Linear(128, 32), nn.ReLU(),
+        self.critic_conv =  nn.Sequential(
+                nn.Conv2d(actor_input_dim, 64,  5, stride=3, padding=2), nn.LeakyReLU(),nn.MaxPool2d(2, 2),
+                nn.Conv2d(64,               128, 5, stride=4, padding=2), nn.LeakyReLU(),nn.MaxPool2d(2, 2),
+                nn.Conv2d(128,              64,  3, stride=2, padding=1), nn.MaxPool2d(2, 2)
+                )
+
+        self.critic_mlp = nn.Sequential(
+                nn.Linear(128, 64), nn.ReLU(),
+                nn.Linear(64, 32), nn.ReLU(),
                 nn.Linear(32, 1) 
         )
         self.action_var = torch.full((action_dim,), action_std*action_std).to(device)
@@ -68,7 +71,7 @@ class ActorCritic(nn.Module):
     def forward(self):
         raise NotImplementedError
     
-    def act(self, state, memory, waypoint, is_test):
+    def act(self, state, memory, is_test):
         state_cuda    = state.to(device)
         action_middle = self.actor_conv(state_cuda)
         action_middle = action_middle.view(-1, 128)
@@ -85,11 +88,10 @@ class ActorCritic(nn.Module):
         memory.states.append(state.detach().cpu())
         memory.actions.append(action.detach().cpu())
         memory.logprobs.append(action_logprob.detach().cpu())
-        memory.waypoint.append(waypoint.detach().cpu())
         
         return action.detach() if is_test == False else action_mean.detach()
     
-    def evaluate(self, state, action, waypoint):   
+    def evaluate(self, state, action):   
         # action_mean = self.actor(state)
         action_middle = self.actor_conv(state)
         action_middle = action_middle.view(-1, 128)
@@ -102,7 +104,11 @@ class ActorCritic(nn.Module):
         
         action_logprobs = dist.log_prob(action)
         dist_entropy = dist.entropy()
-        state_value = self.critic(waypoint)
+        # state_value = self.critic(state)
+        state_value_middle = self.critic_conv(state)
+        state_value_middle = state_value_middle.view(-1, 128)
+        state_value = self.critic_mlp(state_value_middle)
+
         
         return action_logprobs, torch.squeeze(state_value), dist_entropy
 
@@ -115,22 +121,21 @@ class PPO(object):
         self.K_epochs = K_epochs
         
         # self.policy = ActorCritic(state_dim, action_dim, action_std).to(device)
-        self.policy = ActorCritic(critic_state_dim=state_dim, action_std=action_std,actor_input_dim=3, action_dim=1).to(device)
+        self.policy = ActorCritic(critic_state_dim=state_dim, action_std=action_std,actor_input_dim=3, action_dim=2).to(device)
 
         self.optimizer = torch.optim.Adam(self.policy.parameters(), lr=lr, betas=betas)
         
         # self.policy_old = ActorCritic(state_dim, action_dim, action_std).to(device)
-        self.policy_old = ActorCritic(critic_state_dim=state_dim, action_std=action_std,actor_input_dim=3, action_dim=1).to(device)
+        self.policy_old = ActorCritic(critic_state_dim=state_dim, action_std=action_std,actor_input_dim=3, action_dim=2).to(device)
         self.policy_old.load_state_dict(self.policy.state_dict())
         
         self.MseLoss = nn.MSELoss()
     
-    def select_action(self, state, memory, waypoint, is_test=False):
+    def select_action(self, state, memory, is_test=False):
         # state = torch.FloatTensor(state.reshape(1, -1)).to(device)
         img = Image.fromarray(cv2.cvtColor(state,cv2.COLOR_BGR2RGB))
         state = img_trans(img).unsqueeze(0)
-        waypoint = torch.FloatTensor(waypoint.reshape(1, -1)).to(device)
-        return self.policy_old.act(state, memory, waypoint, is_test).cpu().data.numpy().flatten()
+        return self.policy_old.act(state, memory, is_test).cpu().data.numpy().flatten()
     
     def update(self, memory):
         # Monte Carlo estimate of rewards:
@@ -152,12 +157,13 @@ class PPO(object):
 
         # old_states = torch.squeeze(torch.stack(memory.states).to(device), 1).detach()
         # old_actions = torch.squeeze(torch.stack(memory.actions).to(device), 1).detach()
+        # print(old_actions.shape)
 
         # old_logprobs = torch.squeeze(torch.stack(memory.logprobs), 1).to(device).detach()
 
         # old_waypoint = torch.squeeze(torch.stack(memory.waypoint), 1).to(device).detach()
 
-        batch_size = 256
+        batch_size = 128
         # Optimize policy for K epochs:
         # for _ in range(self.K_epochs):
         for i in tqdm(range(self.K_epochs), desc='Update policy'):
@@ -165,25 +171,22 @@ class PPO(object):
             index = np.random.choice(len(memory.actions), size=batch_size)
 
             states = np.array([t.squeeze(0).numpy() for t in memory.states])
-            actions = np.array(memory.actions)
+            actions = np.array([a.squeeze(0).numpy() for a in memory.actions])
             logprobs = np.array(memory.logprobs)
-            waypoints = np.array([w.squeeze(0).numpy() for w in memory.waypoint])
 
             batch_states = states[index]
             batch_actions = actions[index]
             batch_logprobs = logprobs[index]
-            batch_waypoints = waypoints[index]
             batch_rewards = rewards_np[index]
 
             old_states = torch.from_numpy(batch_states).to(device)
-            old_actions = torch.from_numpy(batch_actions).unsqueeze(1).to(device)
+            old_actions = torch.from_numpy(batch_actions).to(device)
             old_logprobs = torch.from_numpy(batch_logprobs).to(device)
-            old_waypoint = torch.from_numpy(batch_waypoints).to(device)
             rewards = torch.tensor(batch_rewards, dtype=torch.float32).to(device)
             rewards = (rewards - rewards.mean()) / (rewards.std() + 1e-5)
 
             # Evaluating old actions and values :
-            logprobs, state_values, dist_entropy = self.policy.evaluate(old_states, old_actions, old_waypoint)
+            logprobs, state_values, dist_entropy = self.policy.evaluate(old_states, old_actions)
             
             # Finding the ratio (pi_theta / pi_theta__old):
             ratios = torch.exp(logprobs - old_logprobs.detach())

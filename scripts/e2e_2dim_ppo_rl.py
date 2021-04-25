@@ -22,9 +22,9 @@ from utils.carla_sensor import Sensor, CarlaSensorMaster
 # from utils.capac_controller import CapacController
 import carla_utils as cu
 from utils import GlobalDict
-from utils.gym_wrapper_e2e_ppo import CARLAEnv
+from utils.gym_wrapper_e2e_2dim import CARLAEnv
 
-from rl.PPO_continuous_e2e import Memory, PPO
+from rl.PPO_continuous_2dim import Memory, PPO
 
 # import gc
 # import objgraph
@@ -59,7 +59,8 @@ global_transform = 0.
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
 parser = argparse.ArgumentParser(description='Params')
-parser.add_argument('--name', type=str, default="test", help='name of the script') #rl-train-e2e-08
+parser.add_argument('--name', type=str, default="2dim-01", help='name of the script') #rl-train-e2e-08
+parser.add_argument('-n', '--number-of-vehicles',metavar='N',default=60,type=int,help='number of vehicles (default: 30)')
 args = parser.parse_args()
 
 log_path = '/home/cz/result/log/ppo/'+args.name+'/'
@@ -110,6 +111,16 @@ def main():
     
     world = client.load_world('Town07')
 
+    vehicles_id_list = []
+
+    traffic_manager = client.get_trafficmanager(8000)
+    # every vehicle keeps a distance of 6.0 meter
+    traffic_manager.set_global_distance_to_leading_vehicle(6.0)
+    # Set physical mode only for cars around ego vehicle to save computation
+    traffic_manager.set_hybrid_physics_mode(True)
+    # default speed is 30
+    traffic_manager.global_percentage_speed_difference(80)  # 80% of 30 km/h
+    traffic_manager.set_synchronous_mode(True)
 
     weather = carla.WeatherParameters(
         cloudiness=random.randint(0,10),
@@ -123,40 +134,94 @@ def main():
     settings.synchronous_mode = True
     settings.fixed_delta_seconds = 0.05
     world.apply_settings(settings)
-    
+
     blueprint = world.get_blueprint_library()
-    # world_map = world.get_map()
-    
     vehicle = add_vehicle(world, blueprint, vehicle_type='vehicle.audi.a2')
 
     global_dict['vehicle'] = vehicle
     # Enables or disables the simulation of physics on this actor.
     vehicle.set_simulate_physics(True)
     # physics_control = vehicle.get_physics_control()
+    sensor_dict = {
+    'camera':{
+        'transform':carla.Transform(carla.Location(x=0.5, y=0.0, z=2.5), carla.Rotation(pitch=-15)),
+        'callback':image_callback,
+        },
+    'camera:view':{
+        #'transform':carla.Transform(carla.Location(x=0.0, y=4.0, z=4.0), carla.Rotation(pitch=-30, yaw=-60)),
+        'transform':carla.Transform(carla.Location(x=-3.0, y=0.0, z=6.0), carla.Rotation(pitch=-45)),
+        #'transform':carla.Transform(carla.Location(x=0.0, y=0.0, z=6.0), carla.Rotation(pitch=-90)),
+        'callback':view_image_callback,
+        },
+    'collision':{
+        'transform':carla.Transform(carla.Location(x=0.5, y=0.0, z=2.5)),
+        'callback':collision_callback,
+        },
+    }
+
+    sm = SensorManager(world, blueprint, vehicle, sensor_dict)
+    sm.init_all()
+
+    blueprints_vehicle = world.get_blueprint_library().filter("vehicle.*")
+    # sort the vehicle list by id
+    blueprints_vehicle = sorted(blueprints_vehicle, key=lambda bp: bp.id)
+
+    spawn_points = world.get_map().get_spawn_points()
+    number_of_spawn_points = len(spawn_points)
+
+    if args.number_of_vehicles < number_of_spawn_points:
+        random.shuffle(spawn_points)
+    elif args.number_of_vehicles >= number_of_spawn_points:
+        # msg = 'requested %d vehicles, but could only find %d spawn points'
+        # logging.warning(msg, args.number_of_vehicles, number_of_spawn_points)
+        args.number_of_vehicles = number_of_spawn_points - 1
+
+    # Use command to apply actions on batch of data
+    SpawnActor = carla.command.SpawnActor
+    SetAutopilot = carla.command.SetAutopilot
+    # this is equal to int 0
+    FutureActor = carla.command.FutureActor
+
+    batch = []
+
+    for n, transform in enumerate(spawn_points):
+        if n >= args.number_of_vehicles:
+            break
+
+        blueprint = random.choice(blueprints_vehicle)
+
+        if blueprint.has_attribute('color'):
+            color = random.choice(blueprint.get_attribute('color').recommended_values)
+            blueprint.set_attribute('color', color)
+        if blueprint.has_attribute('driver_id'):
+            driver_id = random.choice(blueprint.get_attribute('driver_id').recommended_values)
+            blueprint.set_attribute('driver_id', driver_id)
+
+        # set autopilot
+        blueprint.set_attribute('role_name', 'autopilot')
+
+        # spawn the cars and set their autopilot all together
+        batch.append(SpawnActor(blueprint, transform)
+                        .then(SetAutopilot(FutureActor, True, traffic_manager.get_port())))
+
+    # excute the command
+    for (i, response) in enumerate(client.apply_batch_sync(batch, True)):
+        if response.error:
+            # logging.error(response.error)
+            raise ValueError('something wrong')
+        else:
+            print("Fucture Actor", response.actor_id)
+            vehicles_id_list.append(response.actor_id)
+
+
 
     env = CARLAEnv(world, vehicle, global_dict, args)
     # state = env.reset()
 
     # max_steer_angle = np.deg2rad(physics_control.wheels[0].max_steer_angle)
-    sensor_dict = {
-        'camera':{
-            'transform':carla.Transform(carla.Location(x=0.5, y=0.0, z=2.5), carla.Rotation(pitch=-15)),
-            'callback':image_callback,
-            },
-        'camera:view':{
-            #'transform':carla.Transform(carla.Location(x=0.0, y=4.0, z=4.0), carla.Rotation(pitch=-30, yaw=-60)),
-            'transform':carla.Transform(carla.Location(x=-3.0, y=0.0, z=6.0), carla.Rotation(pitch=-45)),
-            #'transform':carla.Transform(carla.Location(x=0.0, y=0.0, z=6.0), carla.Rotation(pitch=-90)),
-            'callback':view_image_callback,
-            },
-        'collision':{
-            'transform':carla.Transform(carla.Location(x=0.5, y=0.0, z=2.5)),
-            'callback':collision_callback,
-            },
-        }
 
-    sm = SensorManager(world, blueprint, vehicle, sensor_dict)
-    sm.init_all()
+    # while True:
+    #     world.tick()
 
     time.sleep(0.5)
 
@@ -173,24 +238,24 @@ def main():
 
     ############## Hyperparameters ##############
     update_timestep = 2000       # update policy every n timesteps
-    action_std = 0.5            # constant std for action distribution (Multivariate Normal)  #0.5
-    K_epochs = 80               # update policy for K epochs
+    action_std = 0.3            # constant std for action distribution (Multivariate Normal)  #0.5
+    K_epochs = 120               # update policy for K epochs
     eps_clip = 0.2              # clip parameter for PPO
     gamma = 0.97                # discount factor 0.99
     lr = 0.0003                 # parameters for Adam optimizer
     betas = (0.9, 0.999)
-    is_test = True             # set is test model or not
+    is_test = False             # set is test model or not
     #############################################
-    state_dim = 30
-    action_dim = 1
+    state_dim = 128
+    action_dim = 2
     memory = Memory()
     ppo = PPO(state_dim, action_dim, action_std, lr, betas, gamma, K_epochs, eps_clip)
-    try:
-        ppo.policy.load_state_dict(torch.load('/home/cz/result/saved_models/ppo/for-middle-01/5340_policy.pth'))
-        ppo.policy_old.load_state_dict(torch.load('/home/cz/result/saved_models/ppo/for-middle-01/5340_policy.pth'))
-        print('load success')
-    except:
-        raise ValueError('load model faid')
+    # try:
+    #     ppo.policy.load_state_dict(torch.load('/home/cz/result/saved_models/ppo/for-middle-01/5340_policy.pth'))
+    #     ppo.policy_old.load_state_dict(torch.load('/home/cz/result/saved_models/ppo/for-middle-01/5340_policy.pth'))
+    #     print('load success')
+    # except:
+    #     raise ValueError('load model faid')
     while total_steps < max_steps:
         global global_transform
         print("total_episode:", episode_num)
@@ -200,19 +265,19 @@ def main():
         episode_reward = 0
         total_driving_metre = 0
 
-        state, waypoint = env.reset()
+        state = env.reset()
         want_to_train = False
         for _ in range(max_episode_steps):
             time_step += 1
 
-            action = ppo.select_action(state, memory, waypoint, is_test=is_test)
+            action = ppo.select_action(state, memory, is_test=is_test)
             # print(action)
 
 
             x_last = global_transform.location.x
             y_last = global_transform.location.y
 
-            next_state, next_waypoint ,reward, done = env.step(action)
+            next_state, reward, done = env.step(action)
 
 
             x_now = global_transform.location.x
@@ -248,7 +313,6 @@ def main():
             #     # print('time:', time_e - time_s)
             
             state = next_state
-            waypoint = next_waypoint
             episode_reward += reward
             total_steps += 1
             episode_timesteps += 1

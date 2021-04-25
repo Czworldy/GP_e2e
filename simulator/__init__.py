@@ -12,8 +12,8 @@ config = {
     'timeout': 5.0,
     'camera':{
         'role_name': 'front',
-        'img_length': 800, #400
-        'img_width': 600, #125#200
+        'img_length': 400, #400
+        'img_width': 125, #125#200
         'fov': 120,
         'fps': 30,
         },
@@ -57,6 +57,10 @@ def add_vehicle(world, blueprint, vehicle_type='vehicle.bmw.grandtourer'):
     if bp.has_attribute('color'):
         color = random.choice(bp.get_attribute('color').recommended_values)
         bp.set_attribute('color', color)
-    transform = random.choice(world.get_map().get_spawn_points())
-    vehicle = world.spawn_actor(bp, transform)
+    try:
+        transform = random.choice(world.get_map().get_spawn_points())
+        vehicle = world.spawn_actor(bp, transform)
+    except:
+        transform = random.choice(world.get_map().get_spawn_points())
+        vehicle = world.spawn_actor(bp, transform)
     return vehicle
