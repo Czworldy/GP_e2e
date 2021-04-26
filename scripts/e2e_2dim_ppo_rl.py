@@ -59,7 +59,7 @@ global_transform = 0.
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
 parser = argparse.ArgumentParser(description='Params')
-parser.add_argument('--name', type=str, default="2dim-01", help='name of the script') #rl-train-e2e-08
+parser.add_argument('--name', type=str, default="test", help='name of the script') #rl-train-e2e-08
 parser.add_argument('-n', '--number-of-vehicles',metavar='N',default=60,type=int,help='number of vehicles (default: 30)')
 args = parser.parse_args()
 
@@ -244,18 +244,18 @@ def main():
     gamma = 0.97                # discount factor 0.99
     lr = 0.0003                 # parameters for Adam optimizer
     betas = (0.9, 0.999)
-    is_test = False             # set is test model or not
+    is_test = True             # set is test model or not
     #############################################
     state_dim = 128
     action_dim = 2
     memory = Memory()
     ppo = PPO(state_dim, action_dim, action_std, lr, betas, gamma, K_epochs, eps_clip)
-    # try:
-    #     ppo.policy.load_state_dict(torch.load('/home/cz/result/saved_models/ppo/for-middle-01/5340_policy.pth'))
-    #     ppo.policy_old.load_state_dict(torch.load('/home/cz/result/saved_models/ppo/for-middle-01/5340_policy.pth'))
-    #     print('load success')
-    # except:
-    #     raise ValueError('load model faid')
+    try:
+        ppo.policy.load_state_dict(torch.load('/home/cz/result/saved_models/ppo/2dim-01/1881_policy.pth'))
+        ppo.policy_old.load_state_dict(torch.load('/home/cz/result/saved_models/ppo/2dim-01/1881_policy.pth'))
+        print('load success')
+    except:
+        raise ValueError('load model faid')
     while total_steps < max_steps:
         global global_transform
         print("total_episode:", episode_num)

@@ -113,7 +113,7 @@ class CARLAEnv(gym.Env):
 
         self.reward = 0.
 
-        for _ in range(4): #4 #50
+        for _ in range(1): #4 #50
 
             if self.global_dict['collision']:
                 self.done = True
