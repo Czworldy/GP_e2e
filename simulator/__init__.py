@@ -53,7 +53,10 @@ def set_weather(world, weather):
     return weather
 
 def add_vehicle(world, blueprint, vehicle_type='vehicle.bmw.grandtourer'):
-    bp = random.choice(blueprint.filter(vehicle_type))
+    while True:
+        bp = random.choice(blueprint.filter(vehicle_type))
+        if bp.get_attribute('number_of_wheels').as_int() == 4:
+            break
     if bp.has_attribute('color'):
         color = random.choice(bp.get_attribute('color').recommended_values)
         bp.set_attribute('color', color)

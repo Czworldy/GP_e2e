@@ -9,9 +9,17 @@ import cv2
 import random
 from tqdm import tqdm
 import time
+from rl.PPO_continuous_e2e import ActorCritic as Steer
 
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+
+steer_ctrl = Steer(30,3,1,0.1).to(device)
+try:
+    steer_ctrl.load_state_dict(torch.load('/home/cz/Desktop/GP_e2e/scripts/img_based_ppo_for_middle.pth'))
+    print('load success')
+except:
+    raise ValueError('load model faid')
 
 img_height = 125
 img_width = 400
@@ -49,9 +57,9 @@ class ActorCritic(nn.Module):
                 nn.Conv2d(128,              64,  3, stride=2, padding=1), nn.MaxPool2d(2, 2)
                 )
         self.actor_mlp = nn.Sequential(
-                nn.Linear(128, 128), nn.LeakyReLU(),
                 nn.Linear(128, 64), nn.LeakyReLU(),
-                nn.Linear(64, action_dim), nn.Tanh()
+                nn.Linear(64, 32), nn.LeakyReLU(),
+                nn.Linear(32, action_dim), nn.Tanh()
         ) 
         # critic
         self.critic_conv =  nn.Sequential(
@@ -88,8 +96,14 @@ class ActorCritic(nn.Module):
         memory.states.append(state.detach().cpu())
         memory.actions.append(action.detach().cpu())
         memory.logprobs.append(action_logprob.detach().cpu())
-        
-        return action.detach() if is_test == False else action_mean.detach()
+
+        steer_middle = steer_ctrl.actor_conv(state_cuda)
+        steer_middle = steer_middle.view(-1, 128)
+        steer        = steer_ctrl.actor_mlp(steer_middle)
+        if is_test == False:
+            return action.detach().cpu().data.numpy().flatten(), steer.detach().cpu().numpy().flatten()
+        else:
+            return action_mean.detach().cpu().data.numpy().flatten(), steer.detach().cpu().numpy().flatten() ####
     
     def evaluate(self, state, action):   
         # action_mean = self.actor(state)
@@ -122,12 +136,12 @@ class PPO(object):
         self.K_epochs = K_epochs
         
         # self.policy = ActorCritic(state_dim, action_dim, action_std).to(device)
-        self.policy = ActorCritic(critic_state_dim=state_dim, action_std=action_std,actor_input_dim=3, action_dim=2).to(device)
+        self.policy = ActorCritic(critic_state_dim=state_dim, action_std=action_std,actor_input_dim=3, action_dim=1).to(device)
 
         self.optimizer = torch.optim.Adam(self.policy.parameters(), lr=lr, betas=betas)
         
         # self.policy_old = ActorCritic(state_dim, action_dim, action_std).to(device)
-        self.policy_old = ActorCritic(critic_state_dim=state_dim, action_std=action_std,actor_input_dim=3, action_dim=2).to(device)
+        self.policy_old = ActorCritic(critic_state_dim=state_dim, action_std=action_std,actor_input_dim=3, action_dim=1).to(device)
         self.policy_old.load_state_dict(self.policy.state_dict())
         
         self.MseLoss = nn.MSELoss()
@@ -136,7 +150,7 @@ class PPO(object):
         # state = torch.FloatTensor(state.reshape(1, -1)).to(device)
         img = Image.fromarray(cv2.cvtColor(state,cv2.COLOR_BGR2RGB))
         state = img_trans(img).unsqueeze(0)
-        return self.policy_old.act(state, memory, is_test).cpu().data.numpy().flatten()
+        return self.policy_old.act(state, memory, is_test)
     
     def update(self, memory):
         # Monte Carlo estimate of rewards:
