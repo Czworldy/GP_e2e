@@ -208,7 +208,8 @@ def main():
     for (i, response) in enumerate(client.apply_batch_sync(batch, True)):
         if response.error:
             # logging.error(response.error)
-            raise ValueError('something wrong')
+            # raise ValueError('something wrong')
+            print(response.error)
         else:
             print("Fucture Actor", response.actor_id)
             vehicles_id_list.append(response.actor_id)
@@ -244,7 +245,7 @@ def main():
     gamma = 0.97                # discount factor 0.99
     lr = 0.0003                 # parameters for Adam optimizer
     betas = (0.9, 0.999)
-    is_test = True             # set is test model or not
+    is_test = False             # set is test model or not
     #############################################
     state_dim = 128
     action_dim = 2

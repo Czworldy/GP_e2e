@@ -52,7 +52,7 @@ class ActorCritic(nn.Module):
                 nn.Linear(128, 128), nn.LeakyReLU(),
                 nn.Linear(128, 64), nn.LeakyReLU(),
                 nn.Linear(64, action_dim), nn.Tanh()
-        )
+        ) 
         # critic
         self.critic_conv =  nn.Sequential(
                 nn.Conv2d(actor_input_dim, 64,  5, stride=3, padding=2), nn.LeakyReLU(),nn.MaxPool2d(2, 2),
@@ -96,6 +96,7 @@ class ActorCritic(nn.Module):
         action_middle = self.actor_conv(state)
         action_middle = action_middle.view(-1, 128)
         action_mean   = self.actor_mlp(action_middle)
+        
         
         action_var = self.action_var.expand_as(action_mean)
         cov_mat = torch.diag_embed(action_var).to(device)

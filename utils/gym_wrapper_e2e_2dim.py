@@ -108,12 +108,15 @@ class CARLAEnv(gym.Env):
 
         # throttle = action[0].astype("float64")
         steer = action[0].astype("float64") * 0.5
-        target_kmh   = max( (action[1].astype("float64") + 1.) * 10. , 0.)
+        target_kmh = max( (action[1].astype("float64") + 1.) * 10. , 0.)
+        target_kmh = min(target_kmh, 25.) 
         # print(target_kmh)
 
         self.reward = 0.
-
-        for _ in range(1): #4 #50
+        current_speed_carla = self.vehicle.get_velocity()
+        current_speed_kmh = np.sqrt(current_speed_carla.x**2+current_speed_carla.y**2) * 3.6
+        throttle, brake = self.pid.run_step(current_speed_kmh, target_kmh)
+        for _ in range(4): #4 #50
 
             if self.global_dict['collision']:
                 self.done = True
@@ -127,7 +130,7 @@ class CARLAEnv(gym.Env):
                 break
             current_speed_carla = self.vehicle.get_velocity()
             current_speed_kmh = np.sqrt(current_speed_carla.x**2+current_speed_carla.y**2) * 3.6
-            throttle, brake = self.pid.run_step(current_speed_kmh, target_kmh)
+            
             control = carla.VehicleControl(throttle=throttle, brake=brake, steer=steer)
             self.vehicle.apply_control(control)
             self.world.tick()
