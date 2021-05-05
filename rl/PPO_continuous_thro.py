@@ -86,16 +86,17 @@ class ActorCritic(nn.Module):
         action_mean   = self.actor_mlp(action_middle)
         # print(action_mean)
         # action_mean = self.actor(state)
-        cov_mat = torch.diag(self.action_var).to(device)
-        
-        dist = MultivariateNormal(action_mean, cov_mat)
-        action = dist.sample()
-        action_logprob = dist.log_prob(action)
-        # print(action_logprob)
+        if is_test == False:
+            cov_mat = torch.diag(self.action_var).to(device)
+            
+            dist = MultivariateNormal(action_mean, cov_mat)
+            action = dist.sample()
+            action_logprob = dist.log_prob(action)
+            # print(action_logprob)
 
-        memory.states.append(state.detach().cpu())
-        memory.actions.append(action.detach().cpu())
-        memory.logprobs.append(action_logprob.detach().cpu())
+            memory.states.append(state.detach().cpu())
+            memory.actions.append(action.detach().cpu())
+            memory.logprobs.append(action_logprob.detach().cpu())
 
         steer_middle = steer_ctrl.actor_conv(state_cuda)
         steer_middle = steer_middle.view(-1, 128)

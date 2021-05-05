@@ -117,17 +117,19 @@ class CARLAEnv(gym.Env):
             target_kmh = 0.
         target_ms  = (target_kmh / 3.6) - 0.2
 
+        target_ms *= 2.
+
         # print(target_kmh)
 
         self.reward = 0.
         # current_speed_carla = self.vehicle.get_velocity()
         # current_speed_kmh = np.sqrt(current_speed_carla.x**2+current_speed_carla.y**2) * 3.6
         # throttle, brake = self.pid.run_step(current_speed_kmh, target_kmh)
-        for _ in range(4): #4 #50
+        for _ in range(2): #4 #50
 
             if self.global_dict['collision']:
                 self.done = True
-                self.reward -= 10  #-50
+                self.reward -= 12  #-50
                 print('collision !')
                 break
             if close2dest(self.vehicle, self.destination, dist=1.):
@@ -187,7 +189,7 @@ class CARLAEnv(gym.Env):
         # self.reward += lane_reward
         self.reward += speed_reward
 
-        if lane_offset > 2.0 or np.rad2deg(diff_rad) > 40:
+        if lane_offset > 2.0 or np.rad2deg(diff_rad) > 50:
             self.done = True
             # self.reward = -2
 
@@ -315,15 +317,16 @@ class CARLAEnv(gym.Env):
         for _ in range(2):
             self.world.tick()
 
-        ref_route = get_reference_route(self.world_map, start_point.location, 300, 0.02)
+        ref_route = get_reference_route(self.world_map, start_point.location, 500, 0.02)
         
         stop_car_indexes = np.arange(int(len(ref_route)/3), len(ref_route))
         stop_car_index = np.random.choice(len(stop_car_indexes))
         # print(stop_car_index)
-        self.stop_vehicle = add_vehicle(self.world, self.world.get_blueprint_library(), vehicle_type='vehicle')
-        self.stop_vehicle.set_velocity(carla.Vector3D(x=0.0, y=0.0, z=0.0))
-        
-        self.stop_vehicle.set_transform(ref_route[stop_car_index][0].transform)
+        # if self.stop_vehicle is not None:
+        #     self.stop_vehicle = add_vehicle(self.world, self.world.get_blueprint_library(), vehicle_type='vehicle')
+        #     self.stop_vehicle.set_velocity(carla.Vector3D(x=0.0, y=0.0, z=0.0))
+            
+        #     self.stop_vehicle.set_transform(ref_route[stop_car_index][0].transform)
 
         self.destination = ref_route[-1][0].transform
         
