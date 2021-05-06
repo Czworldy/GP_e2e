@@ -60,7 +60,7 @@ global_transform = 0.
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
 parser = argparse.ArgumentParser(description='Params')
-parser.add_argument('--name', type=str, default="thro_07", help='name of the script') #rl-train-e2e-08
+parser.add_argument('--name', type=str, default="thro_11", help='name of the script') 
 parser.add_argument('-n', '--number-of-vehicles',metavar='N',default=150,type=int,help='number of vehicles (default: 30)')
 args = parser.parse_args()
 
@@ -105,78 +105,12 @@ def view_image_callback(data):
 def collision_callback(data):
     global_dict['collision'] = True
 
-def add_vehicle_tm(client, world, args):
-    vehicles_id_list = []
-
-    traffic_manager = client.get_trafficmanager(8000)
-    # every vehicle keeps a distance of 6.0 meter
-    traffic_manager.set_global_distance_to_leading_vehicle(6.0)
-    # Set physical mode only for cars around ego vehicle to save computation
-    traffic_manager.set_hybrid_physics_mode(True)
-    # default speed is 30
-    traffic_manager.global_percentage_speed_difference(80)  # 80% of 30 km/h
-    traffic_manager.set_synchronous_mode(True)
-
-    blueprints_vehicle = world.get_blueprint_library().filter("vehicle.*")
-    # sort the vehicle list by id
-    blueprints_vehicle = sorted(blueprints_vehicle, key=lambda bp: bp.id)
-
-    spawn_points = world.get_map().get_spawn_points()
-    number_of_spawn_points = len(spawn_points)
-
-    if args.number_of_vehicles < number_of_spawn_points:
-        random.shuffle(spawn_points)
-    elif args.number_of_vehicles >= number_of_spawn_points:
-        # msg = 'requested %d vehicles, but could only find %d spawn points'
-        # logging.warning(msg, args.number_of_vehicles, number_of_spawn_points)
-        args.number_of_vehicles = number_of_spawn_points - 1
-
-    # Use command to apply actions on batch of data
-    SpawnActor = carla.command.SpawnActor
-    SetAutopilot = carla.command.SetAutopilot
-    # this is equal to int 0
-    FutureActor = carla.command.FutureActor
-
-    batch = []
-
-    for n, transform in enumerate(spawn_points):
-        if n >= args.number_of_vehicles:
-            break
-
-        blueprint = random.choice(blueprints_vehicle)
-
-        if blueprint.has_attribute('color'):
-            color = random.choice(blueprint.get_attribute('color').recommended_values)
-            blueprint.set_attribute('color', color)
-        if blueprint.has_attribute('driver_id'):
-            driver_id = random.choice(blueprint.get_attribute('driver_id').recommended_values)
-            blueprint.set_attribute('driver_id', driver_id)
-
-        # set autopilot
-        blueprint.set_attribute('role_name', 'autopilot')
-
-        # spawn the cars and set their autopilot all together
-        batch.append(SpawnActor(blueprint, transform)
-                        .then(SetAutopilot(FutureActor, True, traffic_manager.get_port())))
-
-    # excute the command
-    for (i, response) in enumerate(client.apply_batch_sync(batch, True)):
-        if response.error:
-            # logging.error(response.error)
-            # raise ValueError('something wrong')
-            print(response.error)
-        else:
-            print("Fucture Actor", response.actor_id)
-            vehicles_id_list.append(response.actor_id)
-    return vehicles_id_list
-
 def main():
 
     client = carla.Client(config['host'], config['port'])
     client.set_timeout(config['timeout'])
     
     world = client.load_world('Town07')
-
 
     weather = carla.WeatherParameters(
         cloudiness=random.randint(0,10),
@@ -201,7 +135,7 @@ def main():
     vehicle.set_simulate_physics(True)
     # physics_control = vehicle.get_physics_control()
 
-    env = CARLAEnv(world, vehicle, global_dict, args)
+    env = CARLAEnv(client, world, vehicle, global_dict, args)
     # state = env.reset()
 
     # max_steer_angle = np.deg2rad(physics_control.wheels[0].max_steer_angle)
@@ -225,8 +159,6 @@ def main():
     sm = SensorManager(world, blueprint, vehicle, sensor_dict)
     sm.init_all()
 
-    vehicles_id_list = add_vehicle_tm(client, world, args)
-
     time.sleep(0.5)
 
     print('Start to control')
@@ -235,31 +167,39 @@ def main():
     episode_reward = 0
     max_steps = 1e9
     total_steps = 0
-    max_episode_steps = 400 #600
+    max_episode_steps = 1200 #600
     episode_num = 0
 
     time_step = 0
 
     ############## Hyperparameters ##############
-    update_timestep = 1500       # update policy every n timesteps
-    action_std = 0.05            # constant std for action distribution (Multivariate Normal)  #0.5
-    K_epochs = 100               # update policy for K epochs
+    update_timestep = 2000       # update policy every n timesteps
+    action_std = 0.12            # constant std for action distribution (Multivariate Normal)  #0.5
+    K_epochs = 80               # update policy for K epochs
     eps_clip = 0.2              # clip parameter for PPO
-    gamma = 0.94                # discount factor 0.99
+    gamma = 0.9                # discount factor 0.99
     lr = 0.0003                 # parameters for Adam optimizer
     betas = (0.9, 0.999)
     is_test = True             # set is test model or not
     if is_test == True:
-        max_episode_steps = 4000
+        max_episode_steps = 2000
     #############################################
+
+    ################ Statistics #################
+    collision_num = 0
+    success_num = 0
+    off_line_num = 0
+    useless_num = 0
+
+
     state_dim = 30
     action_dim = 1
     memory = Memory()
     ppo = PPO(state_dim, action_dim, action_std, lr, betas, gamma, K_epochs, eps_clip)
     want_to_train = False
     try:
-        ppo.policy.load_state_dict(torch.load('/home/cz/result/saved_models/ppo/thro_05/134_policy.pth'))
-        ppo.policy_old.load_state_dict(torch.load('/home/cz/result/saved_models/ppo/thro_05/134_policy.pth'))
+        ppo.policy.load_state_dict(torch.load('/home/cz/result/saved_models/ppo/thro_10/318_policy.pth'))
+        ppo.policy_old.load_state_dict(torch.load('/home/cz/result/saved_models/ppo/thro_10/318_policy.pth'))
         print('load success')
     except:
         raise ValueError('load model faid')
@@ -282,7 +222,7 @@ def main():
             x_last = global_transform.location.x
             y_last = global_transform.location.y
 
-            next_state, reward, done = env.step(action, steer)
+            next_state, reward, done, done_flag= env.step(action, steer, is_test)
 
 
             x_now = global_transform.location.x
@@ -323,6 +263,20 @@ def main():
             episode_timesteps += 1
             if done or episode_timesteps == max_episode_steps - 1:
                 # quit()
+                if episode_timesteps == max_episode_steps - 1:
+                    done_flag = 1
+                if episode_timesteps > 20:
+                    if done_flag == 1:
+                        success_num += 1
+                    elif done_flag == 0:
+                        collision_num += 1
+                    elif done_flag == 2:
+                        off_line_num += 1
+                else:
+                    useless_num += 1
+                    print("this is unuseful episode")
+                    
+                print("result: ",success_num, collision_num, off_line_num, useless_num)
                 print("episode_timesteps: ",episode_timesteps)
                 print("episode_reward: ",episode_reward)
                 logger.add_scalar('episode_reward', episode_reward, episode_num)
@@ -352,7 +306,7 @@ def main():
     cv2.destroyAllWindows()
     sm.close_all()
     vehicle.destroy()
-    client.apply_batch([carla.command.DestroyActor(x) for x in vehicles_id_list])
+    
 
 if __name__ == '__main__':
     main()

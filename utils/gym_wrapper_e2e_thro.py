@@ -6,6 +6,8 @@ import random
 import copy
 import gym
 import cv2
+import os
+from PIL import Image
 from gym import spaces
 from gym.utils import seeding
 import numpy as np
@@ -55,6 +57,66 @@ def visualize(img, speed, imput):
     # cv2.imshow('Nav', nav)
     cv2.imshow('input', imput)
     cv2.waitKey(1)
+def add_vehicle_tm(client, world, args, traffic_manager):
+    vehicles_id_list = []
+
+
+
+    blueprints_vehicle = world.get_blueprint_library().filter("vehicle.*")
+    # sort the vehicle list by id
+    blueprints_vehicle = sorted(blueprints_vehicle, key=lambda bp: bp.id)
+
+    spawn_points = world.get_map().get_spawn_points()
+    number_of_spawn_points = len(spawn_points)
+
+    if args.number_of_vehicles < number_of_spawn_points:
+        random.shuffle(spawn_points)
+    elif args.number_of_vehicles >= number_of_spawn_points:
+        # msg = 'requested %d vehicles, but could only find %d spawn points'
+        # logging.warning(msg, args.number_of_vehicles, number_of_spawn_points)
+        args.number_of_vehicles = number_of_spawn_points - 1
+
+    # Use command to apply actions on batch of data
+    SpawnActor = carla.command.SpawnActor
+    SetAutopilot = carla.command.SetAutopilot
+    # this is equal to int 0
+    FutureActor = carla.command.FutureActor
+
+    batch = []
+
+    for n, transform in enumerate(spawn_points):
+        if n >= args.number_of_vehicles:
+            break
+
+        while True:
+            blueprint = random.choice(blueprints_vehicle)
+            if blueprint.get_attribute('number_of_wheels').as_int() == 4:
+                break
+
+        if blueprint.has_attribute('color'):
+            color = random.choice(blueprint.get_attribute('color').recommended_values)
+            blueprint.set_attribute('color', color)
+        if blueprint.has_attribute('driver_id'):
+            driver_id = random.choice(blueprint.get_attribute('driver_id').recommended_values)
+            blueprint.set_attribute('driver_id', driver_id)
+
+        # set autopilot
+        blueprint.set_attribute('role_name', 'autopilot')
+
+        # spawn the cars and set their autopilot all together
+        batch.append(SpawnActor(blueprint, transform)
+                        .then(SetAutopilot(FutureActor, True, traffic_manager.get_port())))
+
+    # excute the command
+    for (i, response) in enumerate(client.apply_batch_sync(batch, True)):
+        if response.error:
+            # logging.error(response.error)
+            # raise ValueError('something wrong')
+            print(response.error)
+        else:
+            # print("Fucture Actor", response.actor_id)
+            vehicles_id_list.append(response.actor_id)
+    return vehicles_id_list
 
 # def draw_traj(nav_map, output, args):
 #     nav_map = Image.fromarray(nav_map).convert("RGB")
@@ -71,7 +133,8 @@ def visualize(img, speed, imput):
     
 class CARLAEnv(gym.Env):
 
-    def __init__(self, world, vehicle, global_dict, args):
+    def __init__(self, client, world, vehicle, global_dict, args):
+        self.client = client
         self.world = world
         self.vehicle = vehicle
         self.stop_vehicle = None
@@ -80,6 +143,15 @@ class CARLAEnv(gym.Env):
         self.args = args
         self.pid = LongPID(0.05, -0.5, 1.0)
         self.debugger = self.world.debug
+
+        self.traffic_manager = self.client.get_trafficmanager(8000)
+        # every vehicle keeps a distance of 6.0 meter
+        self.traffic_manager.set_global_distance_to_leading_vehicle(6.0)
+        # Set physical mode only for cars around ego vehicle to save computation
+        self.traffic_manager.set_hybrid_physics_mode(True)
+        # default speed is 30
+        self.traffic_manager.global_percentage_speed_difference(80)  # 80% of 30 km/h
+        self.traffic_manager.set_synchronous_mode(True)
         # self.ctrller = CapacController(self.world, self.vehicle, 30) #freq=50
         # robot action space
 
@@ -96,6 +168,7 @@ class CARLAEnv(gym.Env):
         self.origin_map = get_map(self.waypoint_tuple_list)
         self.spawn_points = self.world_map.get_spawn_points()
         self.route_trace = None
+        self.vehicles_id_list = None
         # environment feedback infomation
         self.state = []
         # self.waypoint = []
@@ -107,17 +180,18 @@ class CARLAEnv(gym.Env):
         self.reset()
 
 
-    def step(self, action, steer):
+    def step(self, action, steer, is_test):
 
         # throttle = action[0].astype("float64")
+        how_done = -1
         steer = steer[0].astype("float64") * 0.5
         target_kmh = max( (action[0].astype("float64") + 1.) * 10. , 0.)
         target_kmh = min(target_kmh, 20.) 
-        if target_kmh < 1.8:
+        if target_kmh < 3.6:
             target_kmh = 0.
         target_ms  = (target_kmh / 3.6) - 0.2
 
-        target_ms *= 2.
+        target_ms *= 1.5
 
         # print(target_kmh)
 
@@ -125,15 +199,17 @@ class CARLAEnv(gym.Env):
         # current_speed_carla = self.vehicle.get_velocity()
         # current_speed_kmh = np.sqrt(current_speed_carla.x**2+current_speed_carla.y**2) * 3.6
         # throttle, brake = self.pid.run_step(current_speed_kmh, target_kmh)
-        for _ in range(2): #4 #50
+        for _ in range(4): #4 #50
 
             if self.global_dict['collision']:
                 self.done = True
-                self.reward -= 12  #-50
+                self.reward -= 10  #-50
+                how_done = 0
                 print('collision !')
                 break
             if close2dest(self.vehicle, self.destination, dist=1.):
                 self.done = True
+                how_done = 1
                 # self.reward += 2.   # reward += 100
                 print('Success !')
                 break
@@ -191,6 +267,7 @@ class CARLAEnv(gym.Env):
 
         if lane_offset > 2.0 or np.rad2deg(diff_rad) > 50:
             self.done = True
+            how_done = 2
             # self.reward = -2
 
 
@@ -225,12 +302,16 @@ class CARLAEnv(gym.Env):
                 s.append(self.route_trace[index+(i+1)*50][0].transform.location)
                 yaw2 = self._angle_normalize(np.deg2rad(self.route_trace[index+(i+1)*50][0].transform.rotation.yaw))
                 state_yaw.append(self._angle_normalize(yaw2 - vehicle_current_yaw_rad))
-                self.debugger.draw_line(self.route_trace[index+50*i][0].transform.location, self.route_trace[index+(i+1)*50][0].transform.location, life_time=0.6, thickness=1.7)
+                self.debugger.draw_line(self.route_trace[index+50*i][0].transform.location - carla.Location(x=0,y=0,z=0.25),
+                                         self.route_trace[index+(i+1)*50][0].transform.location - carla.Location(x=0,y=0,z=0.25), 
+                                            life_time=0.6, thickness=1.7)
             else:
                 s.append(self.route_trace[-1][0].transform.location)
                 yaw2 = self._angle_normalize(np.deg2rad(self.route_trace[-1][0].transform.rotation.yaw))
                 state_yaw.append(self._angle_normalize(yaw2 - vehicle_current_yaw_rad))
-                self.debugger.draw_line(self.route_trace[index][0].transform.location, self.route_trace[-1][0].transform.location, life_time=0.6, thickness=1.7)
+                self.debugger.draw_line(self.route_trace[index][0].transform.location - carla.Location(x=0,y=0,z=0.25), 
+                                        self.route_trace[-1][0].transform.location - carla.Location(x=0,y=0,z=0.25), 
+                                        life_time=0.6, thickness=1.7)
 
             # s.append(self.route_trace[index+2][0].transform.location)
             # yaw3 = self._angle_normalize(np.deg2rad(self.route_trace[index+2][0].transform.rotation.yaw))
@@ -253,6 +334,12 @@ class CARLAEnv(gym.Env):
         # self.waypoint = copy.deepcopy(np.array([state_x,state_y,state_yaw]).reshape(30))
         ################################
         self.state    = copy.deepcopy(self.global_dict['img'])
+        if is_test and self.done:
+            directory = '/home/cz/save_picture/%s' % self.args.name
+            if not os.path.exists(directory):
+                os.makedirs(directory)
+            img = Image.fromarray(cv2.cvtColor(self.global_dict['img'],cv2.COLOR_BGR2RGB))
+            img.save('/home/cz/save_picture/%s/%.1f_%d.jpg' % ( self.args.name, time.time(), how_done ),quality=95,subsampling=0)
         # print(self.state)
         # plt.cla()
         # plt.title("waypoint") 
@@ -264,7 +351,7 @@ class CARLAEnv(gym.Env):
         # plt.pause(1)
 
 
-        return self.state, self.reward, self.done
+        return self.state, self.reward, self.done, how_done
 
     def find_waypoint(self):
         position = self.vehicle.get_transform().location
@@ -305,6 +392,8 @@ class CARLAEnv(gym.Env):
         # start_point = random.choice(self.spawn_points)
         # self.destination = random.choice(self.spawn_points)
         # yujiyu
+        if self.vehicles_id_list is not None:
+            self.client.apply_batch([carla.command.DestroyActor(x) for x in self.vehicles_id_list])
         if self.stop_vehicle is not None:
             self.stop_vehicle.destroy()
         self.vehicle.set_velocity(carla.Vector3D(x=0.0, y=0.0, z=0.0))
@@ -317,7 +406,7 @@ class CARLAEnv(gym.Env):
         for _ in range(2):
             self.world.tick()
 
-        ref_route = get_reference_route(self.world_map, start_point.location, 500, 0.02)
+        ref_route = get_reference_route(self.world_map, start_point.location, 300, 0.02)
         
         stop_car_indexes = np.arange(int(len(ref_route)/3), len(ref_route))
         stop_car_index = np.random.choice(len(stop_car_indexes))
@@ -350,6 +439,8 @@ class CARLAEnv(gym.Env):
         for _ in range(3):
             self.vehicle.set_velocity(carla.Vector3D(x=0.0, y=0.0, z=0.0))
             self.world.tick()
+
+        self.vehicles_id_list = add_vehicle_tm(self.client, self.world, self.args, self.traffic_manager)
         ################################
 
         vehicle_current_x = self.vehicle.get_transform().location.x

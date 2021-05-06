@@ -179,7 +179,7 @@ class PPO(object):
 
         # old_waypoint = torch.squeeze(torch.stack(memory.waypoint), 1).to(device).detach()
 
-        batch_size = 128
+        batch_size = 180
         # Optimize policy for K epochs:
         # for _ in range(self.K_epochs):
         for i in tqdm(range(self.K_epochs), desc='Update policy'):
