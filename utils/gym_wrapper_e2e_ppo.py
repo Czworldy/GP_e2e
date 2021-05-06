@@ -111,7 +111,7 @@ class CARLAEnv(gym.Env):
 
         self.reward = 0.
 
-        for _ in range(1): #4 #50
+        for _ in range(2): #4 #50
 
             if self.global_dict['collision']:
                 self.done = True
@@ -120,12 +120,13 @@ class CARLAEnv(gym.Env):
                 break
             if close2dest(self.vehicle, self.destination, dist=2):
                 self.done = True
-                self.reward += 2.   # reward += 100
+                self.reward += 1.   # reward += 100
                 print('Success !')
                 break
             current_speed_carla = self.vehicle.get_velocity()
-            current_speed_kmh = np.sqrt(current_speed_carla.x**2+current_speed_carla.y**2) * 3.6
-            throttle, brake = self.pid.run_step(current_speed_kmh, 18.)
+            current_speed_ms = np.sqrt(current_speed_carla.x**2+current_speed_carla.y**2)
+            current_speed_kmh = current_speed_ms * 3.6
+            throttle, brake = self.pid.run_step(current_speed_ms, 5.6)
             control = carla.VehicleControl(throttle=throttle, brake=brake, steer=steer)
             self.vehicle.apply_control(control)
             self.world.tick()
@@ -168,7 +169,7 @@ class CARLAEnv(gym.Env):
         self.reward += yaw_reward
         self.reward += lane_reward
 
-        if lane_offset > 2.0 or np.rad2deg(diff_rad) > 40:
+        if lane_offset > 1.2 or np.rad2deg(diff_rad) > 30:
             self.done = True
             self.reward = -2
 
@@ -202,12 +203,16 @@ class CARLAEnv(gym.Env):
                 s.append(self.route_trace[index+(i+1)*50][0].transform.location)
                 yaw2 = self._angle_normalize(np.deg2rad(self.route_trace[index+(i+1)*50][0].transform.rotation.yaw))
                 state_yaw.append(self._angle_normalize(yaw2 - vehicle_current_yaw_rad))
-                self.debugger.draw_line(self.route_trace[index+50*i][0].transform.location, self.route_trace[index+(i+1)*50][0].transform.location, life_time=0.8, thickness=2)
+                self.debugger.draw_line(self.route_trace[index+50*i][0].transform.location - carla.Location(x=0,y=0,z=0.05),
+                                        self.route_trace[index+(i+1)*50][0].transform.location - carla.Location(x=0,y=0,z=0.05),
+                                        life_time=0.6, thickness=1.3)
             else:
                 s.append(self.route_trace[-1][0].transform.location)
                 yaw2 = self._angle_normalize(np.deg2rad(self.route_trace[-1][0].transform.rotation.yaw))
                 state_yaw.append(self._angle_normalize(yaw2 - vehicle_current_yaw_rad))
-                self.debugger.draw_line(self.route_trace[index][0].transform.location, self.route_trace[-1][0].transform.location, life_time=0.8, thickness=2)
+                self.debugger.draw_line(self.route_trace[index][0].transform.location - carla.Location(x=0,y=0,z=0.05), 
+                                        self.route_trace[-1][0].transform.location - carla.Location(x=0,y=0,z=0.05), 
+                                        life_time=0.6, thickness=1.3)
 
             # s.append(self.route_trace[index+2][0].transform.location)
             # yaw3 = self._angle_normalize(np.deg2rad(self.route_trace[index+2][0].transform.rotation.yaw))
@@ -341,12 +346,16 @@ class CARLAEnv(gym.Env):
                 s.append(self.route_trace[index+(i+1)*50][0].transform.location)
                 yaw2 = self._angle_normalize(np.deg2rad(self.route_trace[index+(i+1)*50][0].transform.rotation.yaw))
                 state_yaw.append(self._angle_normalize(yaw2 - vehicle_current_yaw_rad))
-                self.debugger.draw_line(self.route_trace[index+50*i][0].transform.location, self.route_trace[index+(i+1)*50][0].transform.location, life_time=0.8, thickness=2)
+                self.debugger.draw_line(self.route_trace[index+50*i][0].transform.location - carla.Location(x=0,y=0,z=0.05),
+                                        self.route_trace[index+(i+1)*50][0].transform.location - carla.Location(x=0,y=0,z=0.05), 
+                                        life_time=0.6, thickness=1.3)
             else:
                 s.append(self.route_trace[-1][0].transform.location)
                 yaw2 = self._angle_normalize(np.deg2rad(self.route_trace[-1][0].transform.rotation.yaw))
                 state_yaw.append(self._angle_normalize(yaw2 - vehicle_current_yaw_rad))
-                self.debugger.draw_line(self.route_trace[index][0].transform.location, self.route_trace[-1][0].transform.location, life_time=0.8, thickness=2)
+                self.debugger.draw_line(self.route_trace[index][0].transform.location - carla.Location(x=0,y=0,z=0.05),
+                                        self.route_trace[-1][0].transform.location - carla.Location(x=0,y=0,z=0.05),
+                                        life_time=0.6, thickness=1.3)
 
             # s.append(self.route_trace[index+2][0].transform.location)
             # yaw3 = self._angle_normalize(np.deg2rad(self.route_trace[index+2][0].transform.rotation.yaw))

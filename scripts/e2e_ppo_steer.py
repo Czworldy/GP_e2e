@@ -59,7 +59,7 @@ global_transform = 0.
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
 parser = argparse.ArgumentParser(description='Params')
-parser.add_argument('--name', type=str, default="test", help='name of the script') #rl-train-e2e-08
+parser.add_argument('--name', type=str, default="steer_1m_04", help='name of the script') #rl-train-e2e-08
 args = parser.parse_args()
 
 log_path = '/home/cz/result/log/ppo/'+args.name+'/'
@@ -172,11 +172,11 @@ def main():
     time_step = 0
 
     ############## Hyperparameters ##############
-    update_timestep = 2000       # update policy every n timesteps
-    action_std = 0.5            # constant std for action distribution (Multivariate Normal)  #0.5
+    update_timestep = 1000       # update policy every n timesteps
+    action_std = 0.1            # constant std for action distribution (Multivariate Normal)  #0.5
     K_epochs = 80               # update policy for K epochs
     eps_clip = 0.2              # clip parameter for PPO
-    gamma = 0.97                # discount factor 0.99
+    gamma = 0.91                # discount factor 0.99
     lr = 0.0003                 # parameters for Adam optimizer
     betas = (0.9, 0.999)
     is_test = True             # set is test model or not
@@ -186,8 +186,8 @@ def main():
     memory = Memory()
     ppo = PPO(state_dim, action_dim, action_std, lr, betas, gamma, K_epochs, eps_clip)
     try:
-        ppo.policy.load_state_dict(torch.load('/home/cz/result/saved_models/ppo/for-middle-01/5340_policy.pth'))
-        ppo.policy_old.load_state_dict(torch.load('/home/cz/result/saved_models/ppo/for-middle-01/5340_policy.pth'))
+        ppo.policy.load_state_dict(torch.load('/home/cz/result/saved_models/ppo/steer_1m_04/143_policy.pth'))
+        ppo.policy_old.load_state_dict(torch.load('/home/cz/result/saved_models/ppo/steer_1m_04/143_policy.pth'))
         print('load success')
     except:
         raise ValueError('load model faid')

@@ -16,7 +16,7 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 steer_ctrl = Steer(30,3,1,0.1).to(device)
 try:
-    steer_ctrl.load_state_dict(torch.load('/home/cz/Desktop/GP_e2e/scripts/img_based_ppo_for_middle.pth'))
+    steer_ctrl.load_state_dict(torch.load('/home/cz/Desktop/GP_e2e/trained_models/steer_1_3m.pth'))
     print('load success')
 except:
     raise ValueError('load model faid')
@@ -179,7 +179,7 @@ class PPO(object):
 
         # old_waypoint = torch.squeeze(torch.stack(memory.waypoint), 1).to(device).detach()
 
-        batch_size = 180
+        batch_size = 200
         # Optimize policy for K epochs:
         # for _ in range(self.K_epochs):
         for i in tqdm(range(self.K_epochs), desc='Update policy'):

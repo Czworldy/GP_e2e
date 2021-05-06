@@ -60,7 +60,7 @@ global_transform = 0.
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
 parser = argparse.ArgumentParser(description='Params')
-parser.add_argument('--name', type=str, default="thro_11", help='name of the script') 
+parser.add_argument('--name', type=str, default="thro_new_01", help='name of the script') 
 parser.add_argument('-n', '--number-of-vehicles',metavar='N',default=150,type=int,help='number of vehicles (default: 30)')
 args = parser.parse_args()
 
@@ -180,7 +180,7 @@ def main():
     gamma = 0.9                # discount factor 0.99
     lr = 0.0003                 # parameters for Adam optimizer
     betas = (0.9, 0.999)
-    is_test = True             # set is test model or not
+    is_test = False             # set is test model or not
     if is_test == True:
         max_episode_steps = 2000
     #############################################
