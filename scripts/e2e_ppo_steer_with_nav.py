@@ -11,7 +11,7 @@ sys.path.append('/home/cz/CARLA_0.9.9.4/PythonAPI/carla')
 
 from simulator import config, set_weather, add_vehicle
 from simulator.sensor_manager import SensorManager
-from utils.navigator_sim import get_map, get_nav, replan, close2dest
+from utils.navigator_sim_route import get_map, get_nav, replan, close2dest
 # from learning.models import GeneratorUNet
 # from learning.path_model import ModelGRU
 # from utils import fig2data, add_alpha_channel
@@ -22,10 +22,9 @@ from utils.carla_sensor import Sensor, CarlaSensorMaster
 # from utils.capac_controller import CapacController
 import carla_utils as cu
 from utils import GlobalDict
-from utils.gym_wrapper_e2e_thro import CARLAEnv
+from utils.gym_wrapper_e2e_steer_with_nav import CARLAEnv
 
-from rl.PPO_continuous_thro import Memory, PPO
-
+from rl.PPO_continuous_steer_with_nav import Memory, PPO
 
 # import gc
 # import objgraph
@@ -56,12 +55,13 @@ global_dict['view_img'] = None
 global_dict['vehicle'] = None
 global_dict['v0'] = 0.
 global_dict['img'] = None
+global_dict['nav'] = None
+global_dict['plan_map'] = None
 global_transform = 0.
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
 parser = argparse.ArgumentParser(description='Params')
-parser.add_argument('--name', type=str, default="thro_new_test", help='name of the script') 
-parser.add_argument('-n', '--number-of-vehicles',metavar='N',default=150,type=int,help='number of vehicles (default: 30)')
+parser.add_argument('--name', type=str, default="steer_with_nav_03", help='name of the script') #rl-train-e2e-08
 args = parser.parse_args()
 
 log_path = '/home/cz/result/log/ppo/'+args.name+'/'
@@ -83,7 +83,9 @@ def image_callback(data):
     array = np.frombuffer(data.raw_data, dtype=np.dtype("uint8")) 
     array = np.reshape(array, (data.height, data.width, 4)) # RGBA format
     global_dict['img'] = array
-    # global_dict['nav'] = get_nav(global_dict['vehicle'], global_dict['plan_map'])
+    if global_dict['plan_map'] is not None:
+        global_dict['nav'] = get_nav(global_dict['vehicle'], global_dict['plan_map'], town=7)
+    
     # img = Image.fromarray(cv2.cvtColor(global_dict['img'],cv2.COLOR_BGR2RGB))
     # nav = Image.fromarray(cv2.cvtColor(global_dict['nav'],cv2.COLOR_BGR2RGB))
     # img = img_trans(img)
@@ -112,17 +114,13 @@ def main():
     
     world = client.load_world('Town07')
 
-    # weather = carla.WeatherParameters(
-    #     cloudiness=random.randint(0,10),
-    #     precipitation=0,
-    #     sun_altitude_angle=random.randint(50,90)
-    # )
-    weather = carla.WeatherParameters(
-        cloudiness=0,
-        precipitation=0,
-        sun_altitude_angle=60
-    )
 
+    weather = carla.WeatherParameters(
+        cloudiness=random.randint(0,10),
+        precipitation=0,
+        sun_altitude_angle=random.randint(50,90)
+    )
+    
     set_weather(world, weather)
 
     settings = world.get_settings()
@@ -140,14 +138,13 @@ def main():
     vehicle.set_simulate_physics(True)
     # physics_control = vehicle.get_physics_control()
 
-    env = CARLAEnv(client, world, vehicle, global_dict, args)
+    env = CARLAEnv(world, vehicle, global_dict, args)
     # state = env.reset()
 
     # max_steer_angle = np.deg2rad(physics_control.wheels[0].max_steer_angle)
     sensor_dict = {
         'camera':{
-            #'transform':carla.Transform(carla.Location(x=0.5, y=0.0, z=2.5), carla.Rotation(pitch=-15)),######train
-            'transform':carla.Transform(carla.Location(x=0.5, y=0.0, z=2.), carla.Rotation(pitch=-15)),
+            'transform':carla.Transform(carla.Location(x=0.5, y=0.0, z=2.5), carla.Rotation(pitch=-15)),
             'callback':image_callback,
             },
         'camera:view':{
@@ -165,7 +162,11 @@ def main():
     sm = SensorManager(world, blueprint, vehicle, sensor_dict)
     sm.init_all()
 
-    time.sleep(0.5)
+    while global_dict['img'] is None or global_dict['nav'] is None:
+        world.tick()
+
+    
+    # time.sleep(0.5)
 
     print('Start to control')
 
@@ -173,39 +174,28 @@ def main():
     episode_reward = 0
     max_steps = 1e9
     total_steps = 0
-    max_episode_steps = 1200 #600
+    max_episode_steps = 4000 #600
     episode_num = 0
 
     time_step = 0
 
     ############## Hyperparameters ##############
-    update_timestep = 2000       # update policy every n timesteps
-    action_std = 0.12            # constant std for action distribution (Multivariate Normal)  #0.5
+    update_timestep = 1000       # update policy every n timesteps
+    action_std = 0.2            # constant std for action distribution (Multivariate Normal)  #0.5
     K_epochs = 80               # update policy for K epochs
     eps_clip = 0.2              # clip parameter for PPO
     gamma = 0.9                # discount factor 0.99
     lr = 0.0003                 # parameters for Adam optimizer
     betas = (0.9, 0.999)
-    is_test = True             # set is test model or not
-    if is_test == True:
-        max_episode_steps = 2000
+    is_test = False             # set is test model or not
     #############################################
-
-    ################ Statistics #################
-    collision_num = 0
-    success_num = 0
-    off_line_num = 0
-    useless_num = 0
-
-
     state_dim = 30
     action_dim = 1
     memory = Memory()
     ppo = PPO(state_dim, action_dim, action_std, lr, betas, gamma, K_epochs, eps_clip)
-    want_to_train = False
     try:
-        ppo.policy.load_state_dict(torch.load('/home/cz/result/saved_models/ppo/thro_new_01/407_policy.pth'))
-        ppo.policy_old.load_state_dict(torch.load('/home/cz/result/saved_models/ppo/thro_new_01/407_policy.pth'))
+        ppo.policy.load_state_dict(torch.load('/home/cz/result/saved_models/ppo/steer_with_nav_02/69_policy.pth'))
+        ppo.policy_old.load_state_dict(torch.load('/home/cz/result/saved_models/ppo/steer_with_nav_02/69_policy.pth'))
         print('load success')
     except:
         raise ValueError('load model faid')
@@ -218,17 +208,19 @@ def main():
         episode_reward = 0
         total_driving_metre = 0
 
-        state = env.reset()
-
+        state, waypoint = env.reset()
+        want_to_train = False
         for _ in range(max_episode_steps):
             time_step += 1
 
-            action, steer = ppo.select_action(state, memory, is_test=is_test)
+            action = ppo.select_action(state, memory, waypoint, is_test=is_test)
+            # print(action)
+
 
             x_last = global_transform.location.x
             y_last = global_transform.location.y
 
-            next_state, reward, done, done_flag= env.step(action, steer, is_test)
+            next_state, next_waypoint ,reward, done = env.step(action)
 
 
             x_now = global_transform.location.x
@@ -239,11 +231,11 @@ def main():
             memory.rewards.append(reward)
             memory.is_terminals.append(done)
             # model.replay_buffer.push(state, action, reward, next_state, done)
-            if time_step % 50 == 0:
+            if time_step % 200 == 0:
                 print("time_step:", time_step)
             if time_step % update_timestep == 0 and is_test == False:
                 want_to_train = True
-            if want_to_train == True and (done == True or episode_timesteps >= max_episode_steps - 2):
+            if want_to_train == True and done == True:
                 print("Update policy!")
                 ppo.update(memory)
                 memory.clear_memory()
@@ -264,27 +256,12 @@ def main():
             #     # print('time:', time_e - time_s)
             
             state = next_state
+            waypoint = next_waypoint
             episode_reward += reward
             total_steps += 1
             episode_timesteps += 1
-            if done or episode_timesteps == max_episode_steps - 1:
+            if done or episode_timesteps == max_episode_steps:
                 # quit()
-                if episode_timesteps == max_episode_steps - 1:
-                    done_flag = 1
-                if episode_timesteps > 20:
-                    if done_flag == 1:
-                        success_num += 1
-                    elif done_flag == 0:
-                        collision_num += 1
-                    elif done_flag == 2:
-                        off_line_num += 1
-                else:
-                    useless_num += 1
-                    print("this is unuseful episode")
-                    
-                print("result: ",success_num, collision_num, off_line_num, useless_num)
-                print("episode_timesteps: ",episode_timesteps)
-                print("episode_reward: ",episode_reward)
                 logger.add_scalar('episode_reward', episode_reward, episode_num)
                 logger.add_scalar('total_driving_metre', total_driving_metre, episode_num)
                 #if len(model.replay_buffer) > max(learning_starts, model.batch_size):
@@ -312,7 +289,6 @@ def main():
     cv2.destroyAllWindows()
     sm.close_all()
     vehicle.destroy()
-    
 
 if __name__ == '__main__':
     main()

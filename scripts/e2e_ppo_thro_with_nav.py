@@ -11,7 +11,7 @@ sys.path.append('/home/cz/CARLA_0.9.9.4/PythonAPI/carla')
 
 from simulator import config, set_weather, add_vehicle
 from simulator.sensor_manager import SensorManager
-from utils.navigator_sim import get_map, get_nav, replan, close2dest
+from utils.navigator_sim_route import get_map, get_nav, replan, close2dest
 # from learning.models import GeneratorUNet
 # from learning.path_model import ModelGRU
 # from utils import fig2data, add_alpha_channel
@@ -22,9 +22,9 @@ from utils.carla_sensor import Sensor, CarlaSensorMaster
 # from utils.capac_controller import CapacController
 import carla_utils as cu
 from utils import GlobalDict
-from utils.gym_wrapper_e2e_thro import CARLAEnv
+from utils.gym_wrapper_e2e_thro_with_nav import CARLAEnv
 
-from rl.PPO_continuous_thro import Memory, PPO
+from rl.PPO_continuous_thro_with_nav import Memory, PPO
 
 
 # import gc
@@ -56,11 +56,13 @@ global_dict['view_img'] = None
 global_dict['vehicle'] = None
 global_dict['v0'] = 0.
 global_dict['img'] = None
+global_dict['nav'] = None
+global_dict['plan_map'] = None
 global_transform = 0.
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
 parser = argparse.ArgumentParser(description='Params')
-parser.add_argument('--name', type=str, default="thro_new_test", help='name of the script') 
+parser.add_argument('--name', type=str, default="thro_with_nav_02", help='name of the script') 
 parser.add_argument('-n', '--number-of-vehicles',metavar='N',default=150,type=int,help='number of vehicles (default: 30)')
 args = parser.parse_args()
 
@@ -83,7 +85,8 @@ def image_callback(data):
     array = np.frombuffer(data.raw_data, dtype=np.dtype("uint8")) 
     array = np.reshape(array, (data.height, data.width, 4)) # RGBA format
     global_dict['img'] = array
-    # global_dict['nav'] = get_nav(global_dict['vehicle'], global_dict['plan_map'])
+    if global_dict['plan_map'] is not None:
+        global_dict['nav'] = get_nav(global_dict['vehicle'], global_dict['plan_map'], town=7)
     # img = Image.fromarray(cv2.cvtColor(global_dict['img'],cv2.COLOR_BGR2RGB))
     # nav = Image.fromarray(cv2.cvtColor(global_dict['nav'],cv2.COLOR_BGR2RGB))
     # img = img_trans(img)
@@ -165,7 +168,9 @@ def main():
     sm = SensorManager(world, blueprint, vehicle, sensor_dict)
     sm.init_all()
 
-    time.sleep(0.5)
+    while global_dict['img'] is None or global_dict['nav'] is None:
+        world.tick()
+    # time.sleep(0.5)
 
     print('Start to control')
 
@@ -173,14 +178,14 @@ def main():
     episode_reward = 0
     max_steps = 1e9
     total_steps = 0
-    max_episode_steps = 1200 #600
+    max_episode_steps = 1000 #600
     episode_num = 0
 
     time_step = 0
 
     ############## Hyperparameters ##############
-    update_timestep = 2000       # update policy every n timesteps
-    action_std = 0.12            # constant std for action distribution (Multivariate Normal)  #0.5
+    update_timestep = 1000       # update policy every n timesteps
+    action_std = 0.3            # constant std for action distribution (Multivariate Normal)  #0.5
     K_epochs = 80               # update policy for K epochs
     eps_clip = 0.2              # clip parameter for PPO
     gamma = 0.9                # discount factor 0.99
@@ -204,8 +209,8 @@ def main():
     ppo = PPO(state_dim, action_dim, action_std, lr, betas, gamma, K_epochs, eps_clip)
     want_to_train = False
     try:
-        ppo.policy.load_state_dict(torch.load('/home/cz/result/saved_models/ppo/thro_new_01/407_policy.pth'))
-        ppo.policy_old.load_state_dict(torch.load('/home/cz/result/saved_models/ppo/thro_new_01/407_policy.pth'))
+        ppo.policy.load_state_dict(torch.load('/home/cz/result/saved_models/ppo/thro_with_nav_01/222_policy.pth'))
+        ppo.policy_old.load_state_dict(torch.load('/home/cz/result/saved_models/ppo/thro_with_nav_01/222_policy.pth'))
         print('load success')
     except:
         raise ValueError('load model faid')
