@@ -187,15 +187,15 @@ def main():
     gamma = 0.9                # discount factor 0.99
     lr = 0.0003                 # parameters for Adam optimizer
     betas = (0.9, 0.999)
-    is_test = False             # set is test model or not
+    is_test = True             # set is test model or not
     #############################################
     state_dim = 30
     action_dim = 1
     memory = Memory()
     ppo = PPO(state_dim, action_dim, action_std, lr, betas, gamma, K_epochs, eps_clip)
     try:
-        ppo.policy.load_state_dict(torch.load('/home/cz/result/saved_models/ppo/steer_with_nav_02/69_policy.pth'))
-        ppo.policy_old.load_state_dict(torch.load('/home/cz/result/saved_models/ppo/steer_with_nav_02/69_policy.pth'))
+        ppo.policy.load_state_dict(torch.load('/home/cz/result/saved_models/ppo/steer_with_nav_03/218_policy.pth'))
+        ppo.policy_old.load_state_dict(torch.load('/home/cz/result/saved_models/ppo/steer_with_nav_03/218_policy.pth'))
         print('load success')
     except:
         raise ValueError('load model faid')

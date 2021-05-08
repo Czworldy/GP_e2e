@@ -123,7 +123,8 @@ class CARLAEnv(gym.Env):
 
         # throttle = action[0].astype("float64")
         steer = action[0].astype("float64") * 0.5
-
+        if abs(steer) < 0.1:
+            steer = 0.
         self.reward = 0.
 
         for _ in range(2): #4 #50

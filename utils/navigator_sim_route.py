@@ -53,7 +53,7 @@ def draw_route(t_map, vehicle, agent, destination, origin_map, spawn_points):
         waypoint_tuple_list = t_map.get_topology()
         junctions = get_junctions(waypoint_tuple_list)
         start_point = random.choice(junctions).transform
-        route_trace = get_reference_route(t_map, start_point.location, 200, 0.02)
+        route_trace = get_reference_route(t_map, start_point.location, 300, 0.02)
         route_trace_list = []
         dist = 0.
 
@@ -90,7 +90,7 @@ def draw_route(t_map, vehicle, agent, destination, origin_map, spawn_points):
             route_trace_list.append(x)
             route_trace_list.append(y)
 
-        if (dist < 80):
+        if (dist < 100):
             destination = random.choice(spawn_points)
             end_waypoint = agent._map.get_waypoint(destination.location)
         else:

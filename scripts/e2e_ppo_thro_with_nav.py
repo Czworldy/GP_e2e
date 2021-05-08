@@ -62,8 +62,8 @@ global_transform = 0.
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
 parser = argparse.ArgumentParser(description='Params')
-parser.add_argument('--name', type=str, default="thro_with_nav_02", help='name of the script') 
-parser.add_argument('-n', '--number-of-vehicles',metavar='N',default=150,type=int,help='number of vehicles (default: 30)')
+parser.add_argument('--name', type=str, default="test", help='name of the script') 
+parser.add_argument('-n', '--number-of-vehicles',metavar='N',default=5,type=int,help='number of vehicles (default: 30)')
 args = parser.parse_args()
 
 log_path = '/home/cz/result/log/ppo/'+args.name+'/'
@@ -209,8 +209,8 @@ def main():
     ppo = PPO(state_dim, action_dim, action_std, lr, betas, gamma, K_epochs, eps_clip)
     want_to_train = False
     try:
-        ppo.policy.load_state_dict(torch.load('/home/cz/result/saved_models/ppo/thro_with_nav_01/222_policy.pth'))
-        ppo.policy_old.load_state_dict(torch.load('/home/cz/result/saved_models/ppo/thro_with_nav_01/222_policy.pth'))
+        ppo.policy.load_state_dict(torch.load('/home/cz/result/saved_models/ppo/thro_with_nav_D_01/603_policy.pth'))
+        ppo.policy_old.load_state_dict(torch.load('/home/cz/result/saved_models/ppo/thro_with_nav_D_01/603_policy.pth'))
         print('load success')
     except:
         raise ValueError('load model faid')

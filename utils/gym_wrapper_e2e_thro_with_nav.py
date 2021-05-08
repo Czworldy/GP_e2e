@@ -191,13 +191,15 @@ class CARLAEnv(gym.Env):
         # throttle = action[0].astype("float64")
         how_done = -1
         steer = steer[0].astype("float64") * 0.5
+        if abs(steer) < 0.1:
+            steer = 0.
         target_kmh = max( (action[0].astype("float64") + 1.) * 10. , 0.)
         target_kmh = min(target_kmh, 20.) 
         if target_kmh < 1.8:
             target_kmh = 0.
         target_ms  = (target_kmh / 3.6) - 0.2
 
-        target_ms *= 1.5
+        target_ms *= 1.2
 
         # print(target_kmh)
 
@@ -205,7 +207,7 @@ class CARLAEnv(gym.Env):
         # current_speed_carla = self.vehicle.get_velocity()
         # current_speed_kmh = np.sqrt(current_speed_carla.x**2+current_speed_carla.y**2) * 3.6
         # throttle, brake = self.pid.run_step(current_speed_kmh, target_kmh)
-        for _ in range(4): #4 #50
+        for _ in range(2): #4 #50
 
             if self.global_dict['collision']:
                 self.done = True
@@ -419,8 +421,8 @@ class CARLAEnv(gym.Env):
         # start_point = random.choice(self.spawn_points)
         # self.destination = random.choice(self.spawn_points)
         # yujiyu
-        # if self.vehicles_id_list is not None:
-        #     self.client.apply_batch([carla.command.DestroyActor(x) for x in self.vehicles_id_list])
+        if self.vehicles_id_list is not None:
+            self.client.apply_batch([carla.command.DestroyActor(x) for x in self.vehicles_id_list])
         if self.stop_vehicle is not None:
             self.stop_vehicle.destroy()
         self.vehicle.set_velocity(carla.Vector3D(x=0.0, y=0.0, z=0.0))
@@ -455,16 +457,16 @@ class CARLAEnv(gym.Env):
         # self.route_trace = self.agent._trace_route(start_waypoint, end_waypoint)
         self.route_trace = ref_route
 
-        stop_car_indexes = np.arange(int(len(ref_route)/3), len(ref_route))
-        stop_car_index = np.random.choice(len(stop_car_indexes))
-        # print(stop_car_index)
-        # if self.stop_vehicle is not None:
-        self.stop_vehicle = add_vehicle(self.world, self.world.get_blueprint_library(), vehicle_type='vehicle')
-        self.stop_vehicle.set_velocity(carla.Vector3D(x=0.0, y=0.0, z=0.0))
+        # stop_car_indexes = np.arange(int(len(ref_route)/3), len(ref_route))
+        # stop_car_index = np.random.choice(len(stop_car_indexes))
+        # # print(stop_car_index)
+        # # if self.stop_vehicle is not None:
+        # self.stop_vehicle = add_vehicle(self.world, self.world.get_blueprint_library(), vehicle_type='vehicle')
+        # self.stop_vehicle.set_velocity(carla.Vector3D(x=0.0, y=0.0, z=0.0))
         
-        self.stop_vehicle.set_transform(ref_route[stop_car_index][0].transform)
+        # self.stop_vehicle.set_transform(ref_route[stop_car_index][0].transform)
 
-        self.vehicles_id_list.append(self.stop_vehicle.id)
+        # self.vehicles_id_list.append(self.stop_vehicle.id)
 
         start_point.rotation = self.route_trace[0][0].transform.rotation
         self.vehicle.set_transform(start_point)
@@ -472,7 +474,7 @@ class CARLAEnv(gym.Env):
             self.vehicle.set_velocity(carla.Vector3D(x=0.0, y=0.0, z=0.0))
             self.world.tick()
 
-        # self.vehicles_id_list = add_vehicle_tm(self.client, self.world, self.args, self.traffic_manager)
+        self.vehicles_id_list = add_vehicle_tm(self.client, self.world, self.args, self.traffic_manager)
         ################################
 
         # vehicle_current_x = self.vehicle.get_transform().location.x
