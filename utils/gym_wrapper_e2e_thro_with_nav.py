@@ -364,11 +364,11 @@ class CARLAEnv(gym.Env):
 
         self.state = torch.cat((img, nav), 0)
         if self.done:
-            directory = '/home/cz/save_picture/%s' % self.args.name
+            directory = '/home/ff/save_picture/%s' % self.args.name
             if not os.path.exists(directory):
                 os.makedirs(directory)
             img = Image.fromarray(cv2.cvtColor(self.global_dict['img'],cv2.COLOR_BGR2RGB))
-            img.save('/home/cz/save_picture/%s/%.1f_%d.jpg' % ( self.args.name, time.time(), how_done ),quality=95,subsampling=0)
+            img.save('/home/ff/save_picture/%s/%.1f_%d.jpg' % ( self.args.name, time.time(), how_done ),quality=95,subsampling=0)
         # print(self.state)
         # plt.cla()
         # plt.title("waypoint") 
