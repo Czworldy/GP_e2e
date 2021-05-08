@@ -3,10 +3,12 @@ from os.path import join, dirname
 sys.path.insert(0, join(dirname(__file__), '../../'))
 sys.path.insert(0, join(dirname(__file__), '../'))
 
-import simulator
-simulator.load('/home/cz/CARLA_0.9.9.4')
+# import simulator
+# simulator.load('/home/cz/CARLA_0.9.9.4')
+# import carla
+# sys.path.append('/home/cz/CARLA_0.9.9.4/PythonAPI/carla')
+import carla_utils as cu
 import carla
-sys.path.append('/home/cz/CARLA_0.9.9.4/PythonAPI/carla')
 # from agents.navigation.basic_agent import BasicAgent
 
 from simulator import config, set_weather, add_vehicle
@@ -20,7 +22,7 @@ from ff_collect_pm_data import sensor_dict
 # from utils.collect_ipm import InversePerspectiveMapping
 from utils.carla_sensor import Sensor, CarlaSensorMaster
 # from utils.capac_controller import CapacController
-import carla_utils as cu
+# import carla_utils as cu
 from utils import GlobalDict
 from utils.gym_wrapper_e2e_thro_with_nav import CARLAEnv
 
@@ -66,7 +68,7 @@ parser.add_argument('--name', type=str, default="test", help='name of the script
 parser.add_argument('-n', '--number-of-vehicles',metavar='N',default=5,type=int,help='number of vehicles (default: 30)')
 args = parser.parse_args()
 
-log_path = '/home/cz/result/log/ppo/'+args.name+'/'
+log_path = '/home/ff/result/log/ppo/'+args.name+'/'
 # ckpt_path = '/home/cz/result/saved_models/%s' % args.name
 logger = SummaryWriter(log_dir=log_path)
 
@@ -208,12 +210,12 @@ def main():
     memory = Memory()
     ppo = PPO(state_dim, action_dim, action_std, lr, betas, gamma, K_epochs, eps_clip)
     want_to_train = False
-    try:
-        ppo.policy.load_state_dict(torch.load('/home/cz/result/saved_models/ppo/thro_with_nav_D_01/603_policy.pth'))
-        ppo.policy_old.load_state_dict(torch.load('/home/cz/result/saved_models/ppo/thro_with_nav_D_01/603_policy.pth'))
-        print('load success')
-    except:
-        raise ValueError('load model faid')
+    # try:
+    #     ppo.policy.load_state_dict(torch.load('/home/cz/result/saved_models/ppo/thro_with_nav_D_01/603_policy.pth'))
+    #     ppo.policy_old.load_state_dict(torch.load('/home/cz/result/saved_models/ppo/thro_with_nav_D_01/603_policy.pth'))
+    #     print('load success')
+    # except:
+    #     raise ValueError('load model faid')
     while total_steps < max_steps:
         global global_transform
         print("total_episode:", episode_num)
@@ -253,8 +255,8 @@ def main():
                 ppo.update(memory)
                 memory.clear_memory()
                 time_step = 0
-                directory = '/home/cz/result/saved_models/ppo/%s' % (args.name)
-                filename = '/home/cz/result/saved_models/ppo/%s/%s_policy.pth' %(args.name, str(episode_num))
+                directory = '/home/ff/result/saved_models/ppo/%s' % (args.name)
+                filename = '/home/ff/result/saved_models/ppo/%s/%s_policy.pth' %(args.name, str(episode_num))
                 if not os.path.exists(directory):
                     os.makedirs(directory)
                 torch.save(ppo.policy.state_dict(), filename )

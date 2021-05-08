@@ -21,10 +21,10 @@ from matplotlib import pyplot as plt
 import torchvision.transforms as transforms
 
 
-import simulator
-simulator.load('/home/cz/CARLA_0.9.9.4')
+# import simulator
+# simulator.load('/home/cz/CARLA_0.9.9.4')
 import carla
-sys.path.append('/home/cz/CARLA_0.9.9.4/PythonAPI/carla')
+# sys.path.append('/home/cz/CARLA_0.9.9.4/PythonAPI/carla')
 from simulator import config, set_weather, add_vehicle
 from agents.navigation.basic_agent import BasicAgent
 from .pid import LongPID
