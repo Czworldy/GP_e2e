@@ -15,7 +15,7 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 steer_ctrl = Steer(30,4,1,0.01).to(device)
 try:
-    steer_ctrl.load_state_dict(torch.load('/home/cz/Desktop/GP_e2e/trained_models/SteerWithNav_218.pth'))
+    steer_ctrl.load_state_dict(torch.load('/home/ff/github/tmp/GP_e2e/trained_models/SteerWithNav_218.pth'))
     print('load success')
 except:
     raise ValueError('load model faid')
@@ -190,9 +190,9 @@ class PPO(object):
             logprobs = np.array(memory.logprobs)
 
             batch_states = states[index]
-            batch_actions = actions[index]
-            batch_logprobs = logprobs[index]
-            batch_rewards = rewards_np[index]
+            batch_actions = actions[index].astype('float32')
+            batch_logprobs = logprobs[index].astype('float32')
+            batch_rewards = rewards_np[index].astype('float32')
 
             old_states = torch.from_numpy(batch_states).to(device)
             old_actions = torch.from_numpy(batch_actions).unsqueeze(1).to(device)
@@ -309,4 +309,13 @@ def main():
             
 if __name__ == '__main__':
     main()
+
+# /home/ff/github/tmp/GP_e2e/scripts/../rl/PPO_continuous_thro_with_nav.py:189: FutureWarning: The input object of type 'Tensor' is an array-like implementing one of the corresponding protocols (`__array__`, `__array_interface__` or `__array_struct__`); but not a sequence (or 0-D). In the future, this object will be coerced as if it was first converted using `np.array(obj)`. To retain the old behaviour, you have to either modify the type 'Tensor', or assign to an empty array created with `np.empty(correct_shape, dtype=object)`.
+#   actions = np.array(memory.actions)
+# /home/ff/github/tmp/GP_e2e/scripts/../rl/PPO_continuous_thro_with_nav.py:189: VisibleDeprecationWarning: Creating an ndarray from ragged nested sequences (which is a list-or-tuple of lists-or-tuples-or ndarrays with different lengths or shapes) is deprecated. If you meant to do this, you must specify 'dtype=object' when creating the ndarray.
+#   actions = np.array(memory.actions)
+# /home/ff/github/tmp/GP_e2e/scripts/../rl/PPO_continuous_thro_with_nav.py:190: FutureWarning: The input object of type 'Tensor' is an array-like implementing one of the corresponding protocols (`__array__`, `__array_interface__` or `__array_struct__`); but not a sequence (or 0-D). In the future, this object will be coerced as if it was first converted using `np.array(obj)`. To retain the old behaviour, you have to either modify the type 'Tensor', or assign to an empty array created with `np.empty(correct_shape, dtype=object)`.
+#   logprobs = np.array(memory.logprobs)
+# /home/ff/github/tmp/GP_e2e/scripts/../rl/PPO_continuous_thro_with_nav.py:190: VisibleDeprecationWarning: Creating an ndarray from ragged nested sequences (which is a list-or-tuple of lists-or-tuples-or ndarrays with different lengths or shapes) is deprecated. If you meant to do this, you must specify 'dtype=object' when creating the ndarray.
+#   logprobs = np.array(memory.logprobs)
                 

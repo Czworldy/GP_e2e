@@ -5,10 +5,13 @@ sys.path.insert(0, join(dirname(__file__), '../../'))
 sys.path.insert(0, join(dirname(__file__), '../'))
 
 import simulator
-simulator.load('/home/cz/CARLA_0.9.9.4')
+
+import carla_utils as cu
+
+# simulator.load('/home/cz/CARLA_0.9.9.4')
 import carla
-sys.path.append('/home/cz/CARLA_0.9.9.4/PythonAPI/carla')
-from agents.navigation.basic_agent import BasicAgent
+# sys.path.append('/home/cz/CARLA_0.9.9.4/PythonAPI/carla')
+# from agents.navigation.basic_agent import BasicAgent
 
 from simulator import config, set_weather, add_vehicle
 from simulator.sensor_manager import SensorManager
@@ -95,8 +98,8 @@ parser.add_argument('--dt', type=float, default=0.05, help='discretization minim
 parser.add_argument('--rnn_steps', type=int, default=10, help='rnn readout steps')
 args = parser.parse_args()
 
-log_path = '/home/cz/result/log/'+args.name+'/'
-ckpt_path = '/home/cz/result/saved_models/%s' % args.name
+log_path = './result/log/'+args.name+'/'
+ckpt_path = './result/saved_models/%s' % args.name
 logger = SummaryWriter(log_dir=log_path)
 
 model = TD3(buffer_size=2e5, noise_decay_steps=3e3, batch_size=32, logger=logger, policy_freq=4)

@@ -191,11 +191,11 @@ class CARLAEnv(gym.Env):
         # throttle = action[0].astype("float64")
         how_done = -1
         steer = steer[0].astype("float64") * 0.5
-        if abs(steer) < 0.1:
+        if abs(steer) < 0.08:
             steer = 0.
         target_kmh = max( (action[0].astype("float64") + 1.) * 10. , 0.)
         target_kmh = min(target_kmh, 20.) 
-        if target_kmh < 1.8:
+        if target_kmh < 1.2:
             target_kmh = 0.
         target_ms  = (target_kmh / 3.6) - 0.2
 
@@ -211,7 +211,7 @@ class CARLAEnv(gym.Env):
 
             if self.global_dict['collision']:
                 self.done = True
-                self.reward -= 0.1  #-50
+                self.reward -= 10.  #-50
                 how_done = 0
                 print('collision !')
                 break
@@ -568,7 +568,7 @@ class CARLAEnv(gym.Env):
                 dist = np.sqrt((x-position.x)**2+(y-position.y)**2)
                 if dist < 20.:
                     wp_dist = []
-                    for i in range(index, min(index + 400, len(self.route_trace) - 1)):
+                    for i in range(index, min(index + 380, len(self.route_trace) - 1)):
                         wp_location = self.route_trace[i][0].transform.location
                         wp_dist.append(np.sqrt((x-wp_location.x)**2+(y-wp_location.y)**2))
                     if len(wp_dist):

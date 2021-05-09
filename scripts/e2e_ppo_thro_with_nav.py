@@ -64,8 +64,8 @@ global_transform = 0.
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
 parser = argparse.ArgumentParser(description='Params')
-parser.add_argument('--name', type=str, default="test", help='name of the script') 
-parser.add_argument('-n', '--number-of-vehicles',metavar='N',default=5,type=int,help='number of vehicles (default: 30)')
+parser.add_argument('--name', type=str, default="thro_with_nav_02", help='name of the script') 
+parser.add_argument('-n', '--number-of-vehicles',metavar='N',default=200,type=int,help='number of vehicles (default: 30)')
 args = parser.parse_args()
 
 log_path = '/home/ff/result/log/ppo/'+args.name+'/'
@@ -186,14 +186,14 @@ def main():
     time_step = 0
 
     ############## Hyperparameters ##############
-    update_timestep = 1000       # update policy every n timesteps
-    action_std = 0.3            # constant std for action distribution (Multivariate Normal)  #0.5
+    update_timestep = 1000      # update policy every n timesteps
+    action_std = 0.4            # constant std for action distribution (Multivariate Normal)  #0.5
     K_epochs = 80               # update policy for K epochs
     eps_clip = 0.2              # clip parameter for PPO
     gamma = 0.9                # discount factor 0.99
-    lr = 0.0003                 # parameters for Adam optimizer
+    lr = 0.0001                 # parameters for Adam optimizer
     betas = (0.9, 0.999)
-    is_test = True             # set is test model or not
+    is_test = False             # set is test model or not
     if is_test == True:
         max_episode_steps = 2000
     #############################################
@@ -278,7 +278,7 @@ def main():
                 # quit()
                 if episode_timesteps == max_episode_steps - 1:
                     done_flag = 1
-                if episode_timesteps > 20:
+                if episode_timesteps > 10:
                     if done_flag == 1:
                         success_num += 1
                     elif done_flag == 0:
