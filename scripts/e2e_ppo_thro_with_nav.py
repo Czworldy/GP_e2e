@@ -64,7 +64,7 @@ global_transform = 0.
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
 parser = argparse.ArgumentParser(description='Params')
-parser.add_argument('--name', type=str, default="thro_with_nav_02", help='name of the script') 
+parser.add_argument('--name', type=str, default="with_vel_only_spdr_01", help='name of the script') 
 parser.add_argument('-n', '--number-of-vehicles',metavar='N',default=200,type=int,help='number of vehicles (default: 30)')
 args = parser.parse_args()
 
@@ -180,14 +180,14 @@ def main():
     episode_reward = 0
     max_steps = 1e9
     total_steps = 0
-    max_episode_steps = 1000 #600
+    max_episode_steps = 1500 #600
     episode_num = 0
 
     time_step = 0
 
     ############## Hyperparameters ##############
-    update_timestep = 1000      # update policy every n timesteps
-    action_std = 0.4            # constant std for action distribution (Multivariate Normal)  #0.5
+    update_timestep = 1000     # update policy every n timesteps
+    action_std = 0.5            # constant std for action distribution (Multivariate Normal)  #0.5
     K_epochs = 80               # update policy for K epochs
     eps_clip = 0.2              # clip parameter for PPO
     gamma = 0.9                # discount factor 0.99
@@ -211,8 +211,8 @@ def main():
     ppo = PPO(state_dim, action_dim, action_std, lr, betas, gamma, K_epochs, eps_clip)
     want_to_train = False
     # try:
-    #     ppo.policy.load_state_dict(torch.load('/home/cz/result/saved_models/ppo/thro_with_nav_D_01/603_policy.pth'))
-    #     ppo.policy_old.load_state_dict(torch.load('/home/cz/result/saved_models/ppo/thro_with_nav_D_01/603_policy.pth'))
+    #     ppo.policy.load_state_dict(torch.load('/home/ff/result/saved_models/ppo/thro_with_nav_02/269_policy.pth'))
+    #     ppo.policy_old.load_state_dict(torch.load('/home/ff/result/saved_models/ppo/thro_with_nav_02/269_policy.pth'))
     #     print('load success')
     # except:
     #     raise ValueError('load model faid')
@@ -225,17 +225,17 @@ def main():
         episode_reward = 0
         total_driving_metre = 0
 
-        state = env.reset()
+        state, v= env.reset()
 
         for _ in range(max_episode_steps):
             time_step += 1
 
-            action, steer = ppo.select_action(state, memory, is_test=is_test)
+            action, steer = ppo.select_action(state, v, memory, is_test=is_test)
 
             x_last = global_transform.location.x
             y_last = global_transform.location.y
 
-            next_state, reward, done, done_flag= env.step(action, steer, is_test)
+            next_state, v, reward, done, done_flag= env.step(action, steer, is_test)
 
 
             x_now = global_transform.location.x
@@ -322,6 +322,8 @@ def main():
     
 
 if __name__ == '__main__':
+    import carla_utils as cu
+    cu.basic.setup_seed(1999)
     main()
 
 

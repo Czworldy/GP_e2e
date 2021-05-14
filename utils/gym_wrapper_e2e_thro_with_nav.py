@@ -195,7 +195,7 @@ class CARLAEnv(gym.Env):
             steer = 0.
         target_kmh = max( (action[0].astype("float64") + 1.) * 10. , 0.)
         target_kmh = min(target_kmh, 20.) 
-        if target_kmh < 1.2:
+        if target_kmh < 0.5:
             target_kmh = 0.
         target_ms  = (target_kmh / 3.6) - 0.2
 
@@ -233,7 +233,7 @@ class CARLAEnv(gym.Env):
             # time.sleep(0.01)
 
         waypoint1, index, diff_rad = self.find_waypoint()
-        front_has_car, front_dist = self.find_front_vehicle(index)
+        # front_has_car, front_dist = self.find_front_vehicle(index)
         # print(front_dist)
 
         vehicle_current_x = self.vehicle.get_transform().location.x
@@ -241,7 +241,8 @@ class CARLAEnv(gym.Env):
         vehicle_current_yaw = self.vehicle.get_transform().rotation.yaw
 
         current_speed_carla = self.vehicle.get_velocity()
-        current_speed_kmh = np.sqrt(current_speed_carla.x**2+current_speed_carla.y**2) * 3.6
+        current_speed_ms = np.sqrt(current_speed_carla.x**2+current_speed_carla.y**2)
+        current_speed_kmh = current_speed_ms * 3.6
         # v = self.vehicle.get_velocity()
         # waypoint = self.world_map.get_waypoint(self.vehicle.get_transform().location)
 
@@ -271,14 +272,18 @@ class CARLAEnv(gym.Env):
 
         lane_reward = -0.2*lane_offset + 0.1
         yaw_reward  = -0.2*diff_rad + 0.1
-        speed_reward = 0.001 * min(current_speed_kmh, 25)
+        # speed_reward = 0.001 * min(current_speed_kmh, 25)
+        speed_reward = 0.0025 * (current_speed_kmh - 10.)
         stop_reward = 0.
         # self.reward += yaw_reward
         # self.reward += lane_reward
-        if front_has_car == True:
-            speed_reward = - speed_reward * 2.
-            if current_speed_kmh < 0.2:
-                stop_reward = 0.02
+        # if front_has_car == True:
+        #     speed_reward = - speed_reward * 2.
+        #     if current_speed_kmh < 0.2:
+        #         stop_reward = 0.02
+        # else:
+        #     if current_speed_kmh < 0.2:
+        #         stop_reward = -0.02
         self.reward += speed_reward
         self.reward += stop_reward
 
@@ -367,8 +372,13 @@ class CARLAEnv(gym.Env):
             directory = '/home/ff/save_picture/%s' % self.args.name
             if not os.path.exists(directory):
                 os.makedirs(directory)
+            time_now = time.time()
             img = Image.fromarray(cv2.cvtColor(self.global_dict['img'],cv2.COLOR_BGR2RGB))
-            img.save('/home/ff/save_picture/%s/%.1f_%d.jpg' % ( self.args.name, time.time(), how_done ),quality=95,subsampling=0)
+            img.save('/home/ff/save_picture/%s/%.1f_%d.jpg' % ( self.args.name, time_now, how_done ),quality=95,subsampling=0)
+            veiw_img = Image.fromarray(cv2.cvtColor(self.global_dict['view_img'],cv2.COLOR_BGR2RGB))
+            veiw_img.save('/home/ff/save_picture/%s/%.1f_%d_view.jpg' % ( self.args.name, time_now, how_done ),quality=95,subsampling=0)
+        normal_v = np.zeros(1).astype('float32')
+        normal_v[0] = current_speed_ms / 8.
         # print(self.state)
         # plt.cla()
         # plt.title("waypoint") 
@@ -378,9 +388,10 @@ class CARLAEnv(gym.Env):
         # # plt.show()
         # plt.axis('equal')
         # plt.pause(1)
+        # print(normal_v)
 
 
-        return self.state, self.reward, self.done, how_done
+        return self.state, normal_v, self.reward, self.done, how_done
 
     def find_waypoint(self):
         position = self.vehicle.get_transform().location
@@ -552,7 +563,13 @@ class CARLAEnv(gym.Env):
             self.state = None
         self.done = False
         self.reward = 0.0
-        return self.state
+
+
+        normal_v = np.zeros(1).astype('float32')
+        current_speed_carla = self.vehicle.get_velocity()
+        current_speed_ms = np.sqrt(current_speed_carla.x**2+current_speed_carla.y**2)
+        normal_v[0] = current_speed_ms / 8.
+        return self.state , normal_v
     
     def find_front_vehicle(self, index):
         position = self.vehicle.get_transform().location

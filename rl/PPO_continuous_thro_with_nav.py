@@ -36,6 +36,7 @@ class Memory(object):
         self.logprobs = []
         self.rewards = []
         self.is_terminals = []
+        self.vel = []
 
     def clear_memory(self):
         del self.actions[:]
@@ -43,6 +44,8 @@ class Memory(object):
         del self.logprobs[:]
         del self.rewards[:]
         del self.is_terminals[:]
+        del self.vel[:]
+
 
 
 class ActorCritic(nn.Module):
@@ -56,7 +59,7 @@ class ActorCritic(nn.Module):
                 nn.Conv2d(128,             256,  3, stride=2, padding=1), nn.LeakyReLU(),
                 )
         self.actor_mlp = nn.Sequential(
-                nn.Linear(256, 128), nn.LeakyReLU(),
+                nn.Linear(256+1, 128), nn.LeakyReLU(),
                 nn.Linear(128, 64), nn.LeakyReLU(),
                 nn.Linear(64,  32), nn.LeakyReLU(),
                 nn.Linear(32,  1), nn.Tanh()
@@ -69,7 +72,7 @@ class ActorCritic(nn.Module):
                 nn.Conv2d(128,             256,  3, stride=2, padding=1), nn.LeakyReLU(),
         )
         self.critic_mlp = nn.Sequential(
-                nn.Linear(256, 128), nn.ReLU(),
+                nn.Linear(256+1, 128), nn.ReLU(),
                 nn.Linear(128, 32), nn.ReLU(),
                 nn.Linear(32, 1),
         )
@@ -79,10 +82,12 @@ class ActorCritic(nn.Module):
     def forward(self):
         raise NotImplementedError
     
-    def act(self, state, memory, is_test):
+    def act(self, state, vel, memory, is_test):
         state_cuda    = state.to(device)
+        vel = vel.to(device)
         action_middle = self.actor_conv(state_cuda)
         action_middle = action_middle.view(-1, 256)
+        action_middle = torch.cat((action_middle, vel), 1)
         action_mean   = self.actor_mlp(action_middle)
         # print(action_mean)
         # action_mean = self.actor(state)
@@ -97,6 +102,7 @@ class ActorCritic(nn.Module):
             memory.states.append(state.detach().cpu())
             memory.actions.append(action.detach().cpu())
             memory.logprobs.append(action_logprob.detach().cpu())
+            memory.vel.append(vel.detach().cpu())
 
         steer_middle = steer_ctrl.actor_conv(state_cuda)
         steer_middle = steer_middle.view(-1, 256)
@@ -107,10 +113,15 @@ class ActorCritic(nn.Module):
             return action_mean.detach().cpu().data.numpy().flatten(), steer.detach().cpu().numpy().flatten()
         
     
-    def evaluate(self, state, action):   
+    def evaluate(self, state, vel, action):   
         # action_mean = self.actor(state)
+        # print(vel.shape)
         action_middle = self.actor_conv(state)
         action_middle = action_middle.view(-1, 256)
+
+        # import pdb; pdb.set_trace()
+
+        action_middle = torch.cat((action_middle, vel.unsqueeze(1)), 1)
         action_mean   = self.actor_mlp(action_middle)
         
         action_var = self.action_var.expand_as(action_mean)
@@ -123,6 +134,7 @@ class ActorCritic(nn.Module):
 
         state_value_middle = self.critic_conv(state)
         state_value_middle = state_value_middle.view(-1, 256)
+        state_value_middle = torch.cat((state_value_middle , vel.unsqueeze(1)), 1)
         state_value = self.critic_mlp(state_value_middle)
 
         return action_logprobs, torch.squeeze(state_value), dist_entropy
@@ -146,12 +158,14 @@ class PPO(object):
         
         self.MseLoss = nn.MSELoss()
     
-    def select_action(self, state, memory, is_test=False):
+    def select_action(self, state, vel, memory, is_test=False):
         # state = torch.FloatTensor(state.reshape(1, -1)).to(device)
         # img = Image.fromarray(cv2.cvtColor(state,cv2.COLOR_BGR2RGB))
         # state = img_trans(img).unsqueeze(0)
         state = state.unsqueeze(0)
-        return self.policy_old.act(state, memory, is_test)
+        vel = torch.FloatTensor(vel).unsqueeze(0)
+        # print(vel.shape)
+        return self.policy_old.act(state, vel, memory, is_test)
         # state = state.unsqueeze(0)
         # return self.policy_old.act(state, memory, is_test).cpu().data.numpy().flatten()
     
@@ -188,20 +202,24 @@ class PPO(object):
             states = np.array([t.squeeze(0).numpy() for t in memory.states])
             actions = np.array(memory.actions)
             logprobs = np.array(memory.logprobs)
+            vel = np.array(memory.vel)
 
             batch_states = states[index]
             batch_actions = actions[index].astype('float32')
             batch_logprobs = logprobs[index].astype('float32')
             batch_rewards = rewards_np[index].astype('float32')
+            batch_vel = vel[index].astype('float32')
 
             old_states = torch.from_numpy(batch_states).to(device)
             old_actions = torch.from_numpy(batch_actions).unsqueeze(1).to(device)
             old_logprobs = torch.from_numpy(batch_logprobs).to(device)
+            old_vel = torch.from_numpy(batch_vel).to(device)
+
             rewards = torch.tensor(batch_rewards, dtype=torch.float32).to(device)
             rewards = (rewards - rewards.mean()) / (rewards.std() + 1e-5)
 
             # Evaluating old actions and values :
-            logprobs, state_values, dist_entropy = self.policy.evaluate(old_states, old_actions)
+            logprobs, state_values, dist_entropy = self.policy.evaluate(old_states, old_vel, old_actions)
             
             # Finding the ratio (pi_theta / pi_theta__old):
             ratios = torch.exp(logprobs - old_logprobs.detach())
@@ -308,6 +326,8 @@ def main():
             avg_length = 0
             
 if __name__ == '__main__':
+
+
     main()
 
 # /home/ff/github/tmp/GP_e2e/scripts/../rl/PPO_continuous_thro_with_nav.py:189: FutureWarning: The input object of type 'Tensor' is an array-like implementing one of the corresponding protocols (`__array__`, `__array_interface__` or `__array_struct__`); but not a sequence (or 0-D). In the future, this object will be coerced as if it was first converted using `np.array(obj)`. To retain the old behaviour, you have to either modify the type 'Tensor', or assign to an empty array created with `np.empty(correct_shape, dtype=object)`.
