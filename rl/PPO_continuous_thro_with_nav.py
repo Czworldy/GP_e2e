@@ -181,8 +181,8 @@ class PPO(object):
         
         # Normalizing the rewards:
         rewards_np = np.array(rewards)
-        # rewards = torch.tensor(rewards, dtype=torch.float32).to(device)
-        # rewards = (rewards - rewards.mean()) / (rewards.std() + 1e-5)
+        rewards_total = torch.tensor(rewards, dtype=torch.float32).to(device)
+        rewards_total = (rewards_total - rewards_total.mean()) / (rewards_total.std() + 1e-5)
         
         # convert list to tensor
 
@@ -216,7 +216,7 @@ class PPO(object):
             old_vel = torch.from_numpy(batch_vel).to(device)
 
             rewards = torch.tensor(batch_rewards, dtype=torch.float32).to(device)
-            rewards = (rewards - rewards.mean()) / (rewards.std() + 1e-5)
+            rewards = (rewards - rewards_total.mean()) / (rewards_total.std() + 1e-5)
 
             # Evaluating old actions and values :
             logprobs, state_values, dist_entropy = self.policy.evaluate(old_states, old_vel, old_actions)
