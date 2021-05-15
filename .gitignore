@@ -2,3 +2,6 @@
 __pycache__
 .vscode/
 scripts/result/
+
+result/
+save_picture

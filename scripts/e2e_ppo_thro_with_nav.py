@@ -68,7 +68,7 @@ parser.add_argument('--name', type=str, default="with_vel_only_spdr_01", help='n
 parser.add_argument('-n', '--number-of-vehicles',metavar='N',default=200,type=int,help='number of vehicles (default: 30)')
 args = parser.parse_args()
 
-log_path = '/home/ff/result/log/ppo/'+args.name+'/'
+log_path = 'result/log/ppo/'+args.name+'/'
 # ckpt_path = '/home/cz/result/saved_models/%s' % args.name
 logger = SummaryWriter(log_dir=log_path)
 
@@ -255,8 +255,8 @@ def main():
                 ppo.update(memory)
                 memory.clear_memory()
                 time_step = 0
-                directory = '/home/ff/result/saved_models/ppo/%s' % (args.name)
-                filename = '/home/ff/result/saved_models/ppo/%s/%s_policy.pth' %(args.name, str(episode_num))
+                directory = 'result/saved_models/ppo/%s' % (args.name)
+                filename = 'result/saved_models/ppo/%s/%s_policy.pth' %(args.name, str(episode_num))
                 if not os.path.exists(directory):
                     os.makedirs(directory)
                 torch.save(ppo.policy.state_dict(), filename )

@@ -369,14 +369,14 @@ class CARLAEnv(gym.Env):
 
         self.state = torch.cat((img, nav), 0)
         if self.done:
-            directory = '/home/ff/save_picture/%s' % self.args.name
+            directory = 'save_picture/%s' % self.args.name
             if not os.path.exists(directory):
                 os.makedirs(directory)
             time_now = time.time()
             img = Image.fromarray(cv2.cvtColor(self.global_dict['img'],cv2.COLOR_BGR2RGB))
-            img.save('/home/ff/save_picture/%s/%.1f_%d.jpg' % ( self.args.name, time_now, how_done ),quality=95,subsampling=0)
+            img.save('save_picture/%s/%.1f_%d.jpg' % ( self.args.name, time_now, how_done ),quality=95,subsampling=0)
             veiw_img = Image.fromarray(cv2.cvtColor(self.global_dict['view_img'],cv2.COLOR_BGR2RGB))
-            veiw_img.save('/home/ff/save_picture/%s/%.1f_%d_view.jpg' % ( self.args.name, time_now, how_done ),quality=95,subsampling=0)
+            veiw_img.save('save_picture/%s/%.1f_%d_view.jpg' % ( self.args.name, time_now, how_done ),quality=95,subsampling=0)
         normal_v = np.zeros(1).astype('float32')
         normal_v[0] = current_speed_ms / 8.
         # print(self.state)
